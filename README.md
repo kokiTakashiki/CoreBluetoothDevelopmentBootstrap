@@ -20,7 +20,6 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | Open Bootloader | — | nRF52840 Dongle に最初から書かれている DFU 用のブートローダ。RESET ボタンで起動する。 |
 | extcap | external capture | Wireshark が外部プログラムをキャプチャ元として使う仕組み。nRF Sniffer はこの仕組みで BLE パケットを Wireshark に取り込む。 |
 | 既定ターゲット | default goal | 引数なしの `make` で実行されるターゲット。本リポジトリでは `help`。 |
-| 冪等（べきとう） | idempotent | 何回実行しても結果が変わらないこと。本リポジトリでは「導入済みなら処理をスキップする」という意味で使う。 |
 
 ## 使い方
 
@@ -55,7 +54,7 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 
 ## `make setup` が導入するもの
 
-`make setup` は依存ターゲット（`install-tools`）を通じて以下を導入する。各項目は導入前に存在検査され、導入済みならスキップされる（冪等）。なお nRF Sniffer extcap プラグインの配置（`install-sniffer`）は `deploy` 系（`flash-sniffer-dongle`）の依存で実行される。
+`make setup` は依存ターゲット（`install-tools`）を通じて以下を導入する。各項目は導入前に存在検査され、導入済みならスキップされる。なお nRF Sniffer extcap プラグインの配置（`install-sniffer`）は `deploy` 系（`flash-sniffer-dongle`）の依存で実行される。
 
 | ツール | 入手元 | 配置先 | 用途 | 区分 |
 | --- | --- | --- | --- | --- |
