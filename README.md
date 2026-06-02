@@ -7,14 +7,16 @@ Core Bluetooth 検証環境（nRF Connect SDK / Wireshark / nRF Sniffer）を **
 ## 使い方
 
 ```sh
-make            # = make setup : 前提確認 → 導入 → ビルド → 検証 を一括実行
-make check-os   # 実行環境の前提確認（arm64 / Homebrew）
-make install-tools
-make build-firmware
+make                      # = make setup（既定ゴール）
+make setup                # 前提確認 → 導入 → ビルド → 検証 を一括実行
+make check-os             # 実行環境の前提確認（arm64 / Homebrew）
+make install-tools        # nrfutil / NCS Toolchain / west / Wireshark を導入
+make install-sniffer      # nRF Sniffer の extcap プラグインを配置
+make build-firmware       # peripheral_uart をビルド
 make flash-dk             # 開発キットへ書き込み（要 DK 接続）
 make flash-sniffer-dongle # ドングルへ Sniffer FW を書き込み（要ドングル）
-make verify     # 広告 / Sniffer インタフェースの検査
-make clean      # ビルド成果物を削除
+make verify               # 広告 / Sniffer インタフェースの検査
+make clean                # ビルド成果物を削除
 ```
 
 主な変数（`make build-firmware BOARD=... NCS_VERSION=...` で上書き可）:
