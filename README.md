@@ -62,6 +62,20 @@ make clean                # ビルド成果物を削除
 | `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグイン配置先 |
 | `SERIAL_PORT` | 自動検出 | 書き込み対象ポート（複数検出時はエラー） |
 
+## サードパーティのツールとライセンス
+
+本リポジトリ（Makefile / ドキュメント）は MIT ライセンスです。**第三者のツール・SDK・ファームウェアは一切同梱しておらず**、`make` 実行時に各**公式ソースからダウンロード**します（Homebrew formula や Nordic 公式 `nrf-docker` と同様の方式）。したがって本リポジトリの MIT は自作物にのみ適用され、各ツールはそれぞれのライセンス／EULA に従います（両者は独立）。
+
+| ツール | 取得元 | ライセンス（概略） |
+| --- | --- | --- |
+| nrfutil / nRF Connect for Desktop / nRF Command Line Tools | Nordic 公式（`files.nordicsemi.com` / Homebrew） | Nordic 独自 EULA（プロプライエタリ） |
+| nRF Connect SDK — `nrf/`（sdk-nrf） | github.com/nrfconnect/sdk-nrf（`west`） | LicenseRef-Nordic-5-Clause |
+| nRF Connect SDK — Zephyr 等の構成要素 | `west update` で取得 | Apache-2.0 ほか |
+| nRF Sniffer for Bluetooth LE（extcap / FW） | Nordic 公式 | Nordic 独自ライセンス |
+| Wireshark | Homebrew cask | GPL-2.0-or-later |
+
+> 上表のライセンスは概略です。各ツールの「利用」には提供元の EULA／ライセンスが適用され、**それはツールを使う利用者が従うもの**です。本リポジトリはこれらを**再配布せず、取得を自動化するスクリプトのみ**を提供します。正確な条件は各提供元の一次ライセンス文書をご確認ください。
+
 ## ライセンス
 
 [MIT License](LICENSE) © 2026 kokiTakeda
