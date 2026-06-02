@@ -39,6 +39,7 @@ make clean                # ビルド成果物を削除
 | **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
 | **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
+| **nrfjprog ＋ SEGGER J-Link** | Homebrew cask `nordic-nrf-command-line-tools`（`segger-jlink` を依存導入） | `/usr/local/bin` ほか | DK の J-Link 書き込み（`flash-dk`）。`.pkg` のため導入時に sudo を求める場合あり | 必須 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
 > **3 つの入口（関心の分離）:**
@@ -55,9 +56,10 @@ make clean                # ビルド成果物を削除
 | 前提物 | 用途 | 補足 |
 | --- | --- | --- |
 | Homebrew | 各 cask / nrfutil 配置先の基盤 | `check-os` が存在を検査（無ければ停止） |
-| nRF Sniffer 配布物 | extcap プラグイン・Sniffer hex の供給元 | `SNIFFER_PKG_DIR` に展開しておく |
-| nrfjprog（nRF Command Line Tools） | `flash-dk` の J-Link 書き込み | 未導入時は `flash-dk` が明示エラーで停止 |
+| nRF Sniffer 配布物 | extcap プラグイン・Sniffer hex の供給元 | `SNIFFER_PKG_DIR` に展開しておく（Nordic の[配布ページ](https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE/Download)からダウンロード） |
 | 実機（nRF52840 DK / Dongle） | フラッシュ・検証 | `flash-*` / `verify` で必要 |
+
+> nrfjprog ＋ SEGGER J-Link は `make setup`（`install-tools`）が自動導入するようになった（以前は手動前提だった）。残る手動準備は **nRF Sniffer 配布物の配置**と**実機の接続**のみ。
 
 主な変数（`make build-firmware BOARD=... NCS_VERSION=...` で上書き可）:
 
