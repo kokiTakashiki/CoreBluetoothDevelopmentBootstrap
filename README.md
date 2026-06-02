@@ -40,6 +40,14 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | `make verify` | 書き込みと検査をまとめて実行する。実行前に `[y/N]` で確認し、既定は N。 |
 | `make clean` | ビルド成果物を削除する。 |
 
+### 基本の流れ
+
+1. `make setup` でソフトウェア環境（ツール一式とビルド済みファームウェア）を用意する。この段階では実機が無くても完走する。
+2. nRF52840 DK とドングルを接続する。
+3. `make verify` を実行する。実機へファームウェアを書き込んだうえで、DK が BLE で広告しているか、Wireshark に Sniffer インタフェースが現れるかを検査する。これにより、環境整備が正常に完了したかを確認できる。
+
+`make verify` は書き込みの前に `[y/N]` で確認し、`y` と答えたときだけ書き込む（既定は N）。書き込みだけを行いたい場合は `make deploy` を使う。
+
 > **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
 > - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
 > - ドングルは `/dev/tty.usbmodem*` として列挙される。複数検出された場合は `SERIAL_PORT=` で対象を明示する。
@@ -61,13 +69,6 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
-
-> **3 つの入口（役割ごとに分離）:**
-> - `make setup` … **ソフトウェア環境構築**。前提の確認、ツールの導入、ファームウェアのビルドを行う。実機が無くても完走する。
-> - `make deploy` … **実機へ書き込むだけ**（`flash-dk` / `flash-sniffer-dongle`）。確認を挟まないそのままの書き込み。**DK / ドングルの接続が必須**。
-> - `make verify` … **書き込みと検査をまとめて実行する入口**。`[y/N]` で「実機へ書き込みが行われます。問題ないですか？」と確認し、**`y` のときだけ書き込み（`deploy`）を実行**してから、広告 / Sniffer インタフェースを検査する（既定 N。`y` 以外なら書き込みをスキップして現在の状態だけを検査）。
->
-> 書き込みは副作用なので、明示同意（`y`）があったときだけ実行される。`make -n verify`（dry-run）では確認プロンプトは出ない。
 
 > **NCS ソースツリーの自動取得（`fetch-ncs`）:** `install-tools` の `nrfutil toolchain-manager install` は **ツールチェイン（コンパイラ・Zephyr 依存）のみ**を導入し、`nrf/`・`zephyr/`・`samples/` を含む **NCS ソースツリーは取得しない**。そのため `build-firmware` は `fetch-ncs` に依存し、未取得時に `west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION)` + `west update` + `west zephyr-export` で `$(HOME)/ncs/$(NCS_VERSION)` へソースを展開する（Nordic 公式手順: [Installing the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html)）。**数 GB のダウンロード**を伴うため初回は時間がかかる。`SAMPLE_DIR` か `$(NCS_BASE)/.west` が既にあれば再取得しない（冪等）。
 
