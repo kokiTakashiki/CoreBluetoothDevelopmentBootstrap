@@ -13,7 +13,8 @@ make check-os             # 実行環境の前提確認（arm64 / Homebrew）
 make install-nrfutil      # nrfutil 本体を導入（公式 arm64 バイナリ）
 make install-tools        # nrfutil コマンド / NCS Toolchain / west / Wireshark を導入
 make install-sniffer      # nRF Sniffer の extcap プラグインを配置
-make build-firmware       # peripheral_uart をビルド
+make fetch-ncs            # NCS ソースツリーを取得（west init+update / 数 GB DL）
+make build-firmware       # peripheral_uart をビルド（未取得なら fetch-ncs が先に走る）
 make flash-dk             # 開発キットへ書き込み（要 DK 接続）
 make flash-sniffer-dongle # ドングルへ Sniffer FW を書き込み（要ドングル）
 make verify               # 広告 / Sniffer インタフェースの検査
@@ -33,12 +34,15 @@ make clean                # ビルド成果物を削除
 | nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | 接続デバイスの操作 | 必須 |
 | nrfutil **nrf5sdk-tools** コマンド | `nrfutil install nrf5sdk-tools` | nrfutil 管理下 | `pkg generate` / `dfu usb-serial`（ドングルの DFU 書き込み）を提供 | 必須 |
 | **NCS Toolchain**（`NCS_VERSION`） | `nrfutil toolchain-manager install` | `/opt/nordic/ncs/toolchains/…` | Zephyr/NCS のコンパイラ・ビルド依存一式（数 GB） | 必須 |
+| **NCS ソースツリー**（`NCS_VERSION`） | `west init -m sdk-nrf --mr` + `west update`（`fetch-ncs` が実行） | `$(HOME)/ncs/$(NCS_VERSION)`（`nrf/`・`zephyr/`・`samples/` 等） | サンプル（`peripheral_uart`）と Zephyr 本体のソース。ビルドに必須（数 GB） | 必須 |
 | **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
 | **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
 > `make setup` はこれらの導入に加えて、ファームウェアのビルド（`build-firmware`）と**実機への書き込み**（`flash-dk` / `flash-sniffer-dongle`）・検証（`verify`）まで実行する。書き込みには **DK / ドングルの接続が必須**。
+
+> **NCS ソースツリーの自動取得（`fetch-ncs`）:** `install-tools` の `nrfutil toolchain-manager install` は **ツールチェイン（コンパイラ・Zephyr 依存）のみ**を導入し、`nrf/`・`zephyr/`・`samples/` を含む **NCS ソースツリーは取得しない**。そのため `build-firmware` は `fetch-ncs` に依存し、未取得時に `west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION)` + `west update` + `west zephyr-export` で `$(HOME)/ncs/$(NCS_VERSION)` へソースを展開する（Nordic 公式手順: [Installing the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html)）。**数 GB のダウンロード**を伴うため初回は時間がかかる。`SAMPLE_DIR` か `$(NCS_BASE)/.west` が既にあれば再取得しない（冪等）。
 
 **`make setup` では導入されない前提物**（別途用意が必要）:
 

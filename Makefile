@@ -165,7 +165,13 @@ install-sniffer: install-tools ## nRF Sniffer の extcap プラグインを配�
 	@echo "==> install-sniffer: extcap プラグインを配置します"
 	@if [ ! -d "$(SNIFFER_EXTCAP_SRC)" ]; then \
 		echo "ERROR(install-sniffer): Sniffer extcap ソースが見つかりません: $(SNIFFER_EXTCAP_SRC)" >&2; \
-		echo "  SNIFFER_PKG_DIR を nRF Sniffer 配布物の展開先に設定してください。" >&2; \
+		echo "  nRF Sniffer for Bluetooth LE 配布物（zip）が未展開です。" >&2; \
+		echo "  対処:" >&2; \
+		echo "    1) ダウンロード: https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE" >&2; \
+		echo "    2) zip を展開し、その中身を SNIFFER_PKG_DIR に配置（既定: $(SNIFFER_PKG_DIR)）" >&2; \
+		echo "       → 展開後に $(SNIFFER_EXTCAP_SRC) が存在する状態にする" >&2; \
+		echo "    3) 別パスに置いた場合は 'make install-sniffer SNIFFER_PKG_DIR=/path/to/extracted' で指定" >&2; \
+		echo "  導入手順: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer.html" >&2; \
 		exit 1; \
 	fi
 	@mkdir -p "$(WIRESHARK_EXTCAP_DIR)"
@@ -188,14 +194,66 @@ install-sniffer: install-tools ## nRF Sniffer の extcap プラグインを配�
 	echo "==> install-sniffer: 完了 (更新 $$changed 件)"
 
 # ============================================================
+# fetch-ncs : nRF Connect SDK のソースツリーを取得（west init + update）
+#   install-tools が入れた nrfutil toolchain-manager 環境内で west を実行し、
+#   NCS_VERSION 固定で $(NCS_BASE) に nrf/ zephyr/ samples/ 等のソースを展開する。
+#   install-tools はツールチェイン（コンパイラ/Zephyr 依存）のみを入れるため、
+#   ソースツリー（SAMPLE_DIR を含む）は本ターゲットが別途取得する（→ DL-7）。
+#
+#   コマンドは Nordic 公式の install_ncs 手順に準拠（推測コマンドではない）:
+#     https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html
+#     1) launch -- west init -m https://github.com/nrfconnect/sdk-nrf --mr <ver> <topdir>
+#     2) workspace 内で west update（cd 後に実行）
+#     3) west zephyr-export（Zephyr CMake パッケージを登録）
+#
+#   注意: west update は NCS 全リポジトリ（nrf/zephyr/mcuboot 等）を clone するため
+#         数 GB のダウンロードと相応の時間を要する。CI では実行しない（dry-run のみ）。
+#
+#   冪等ガード: SAMPLE_DIR か west workspace($(NCS_BASE)/.west) が既にあれば何もしない。
+# ============================================================
+fetch-ncs: install-tools ## NCS ソースツリーを取得（west init+update / 数 GB DL）
+	@echo "==> fetch-ncs: NCS ソースを取得します ($(NCS_BASE), NCS_VERSION=$(NCS_VERSION))"
+	@if [ -d "$(SAMPLE_DIR)" ] || [ -d "$(NCS_BASE)/.west" ]; then \
+		echo "    [skip] NCS ソース取得済み ($(NCS_BASE))"; \
+	else \
+		echo "    [fetch] NCS ソースを取得します（数 GB のダウンロード。時間がかかります）"; \
+		mkdir -p "$(NCS_BASE)"; \
+		if ! nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- \
+			west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION) "$(NCS_BASE)"; then \
+			echo "ERROR(fetch-ncs): west init に失敗しました（manifest 取得 / ネットワークを確認してください）。" >&2; \
+			echo "  - manifest: https://github.com/nrfconnect/sdk-nrf （--mr $(NCS_VERSION) が存在するタグ/ブランチか確認）" >&2; \
+			echo "  - 公式手順: https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html" >&2; \
+			echo "  - 途中失敗時は 'rm -rf $(NCS_BASE)' で消してから再実行してください。" >&2; \
+			exit 1; \
+		fi; \
+		if ! nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- \
+			/bin/bash -c 'cd "$(NCS_BASE)" && west update && west zephyr-export'; then \
+			echo "ERROR(fetch-ncs): west update に失敗しました（ネットワーク / リポジトリ取得を確認してください）。" >&2; \
+			echo "  - 公式手順: https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html" >&2; \
+			echo "  - 途中失敗時は workspace($(NCS_BASE)) 内で west update を再実行するか、'rm -rf $(NCS_BASE)' で消してから 'make fetch-ncs' を再実行してください。" >&2; \
+			exit 1; \
+		fi; \
+		echo "    [done] NCS ソース取得完了 ($(NCS_BASE))"; \
+	fi
+	@echo "==> fetch-ncs: 完了"
+
+# ============================================================
 # build-firmware : peripheral_uart をビルド
 #   west build のインクリメンタル機構に委ねる（ソース未変更時は再コンパイルなし）
+#   ソースツリーは fetch-ncs が事前に取得する（依存関係で自動実行）。
 # ============================================================
-build-firmware: install-tools ## peripheral_uart をビルド
+build-firmware: install-tools fetch-ncs ## peripheral_uart をビルド
 	@echo "==> build-firmware: $(BOARD) 向けに $(SAMPLE_DIR) をビルドします"
 	@if [ ! -d "$(SAMPLE_DIR)" ]; then \
 		echo "ERROR(build-firmware): サンプルが見つかりません: $(SAMPLE_DIR)" >&2; \
-		echo "  NCS_VERSION=$(NCS_VERSION) のインストール先を確認してください。" >&2; \
+		echo "  NCS ソースが未取得か、想定パスにありません（NCS_VERSION=$(NCS_VERSION)）。" >&2; \
+		echo "  対処: 'make fetch-ncs' を実行して NCS ソースツリーを取得してください。" >&2; \
+		echo "  手動取得（nrfutil toolchain-manager 環境内）:" >&2; \
+		echo "    nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- \\" >&2; \
+		echo "      west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION) $(NCS_BASE)" >&2; \
+		echo "    cd $(NCS_BASE) && nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- \\" >&2; \
+		echo "      /bin/bash -c 'west update && west zephyr-export'" >&2; \
+		echo "  公式手順: https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html" >&2; \
 		exit 1; \
 	fi
 	# nrfutil toolchain-manager の環境内で west build を実行する。
@@ -212,7 +270,10 @@ build-firmware: install-tools ## peripheral_uart をビルド
 flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 	@echo "==> flash-dk: 開発キットへ書き込みます"
 	@if ! command -v nrfjprog >/dev/null 2>&1; then \
-		echo "ERROR(flash-dk): nrfjprog が見つかりません（nRF Command Line Tools を導入してください）" >&2; \
+		echo "ERROR(flash-dk): nrfjprog が見つかりません。" >&2; \
+		echo "  nrfjprog は nRF Command Line Tools に含まれます（J-Link 経由の DK 書き込みに必要）。" >&2; \
+		echo "  対処: 下記からダウンロードしてインストールしてください:" >&2; \
+		echo "    https://www.nordicsemi.com/Products/Development-tools/nRF-Command-Line-Tools/Download" >&2; \
 		exit 1; \
 	fi
 	@ids="$$(nrfjprog --ids 2>/dev/null || true)"; \
@@ -240,6 +301,13 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 	@hex="$$(ls $(SNIFFER_HEX) 2>/dev/null | head -n1 || true)"; \
 	if [ -z "$$hex" ]; then \
 		echo "ERROR(flash-sniffer-dongle): Sniffer hex が見つかりません: $(SNIFFER_HEX)" >&2; \
+		echo "  nRF Sniffer for Bluetooth LE 配布物（zip）が未展開か、SNIFFER_PKG_DIR が誤っています。" >&2; \
+		echo "  対処:" >&2; \
+		echo "    1) ダウンロード: https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE" >&2; \
+		echo "    2) zip を展開し、その中身を SNIFFER_PKG_DIR に配置（既定: $(SNIFFER_PKG_DIR)）" >&2; \
+		echo "       → 展開後に $(SNIFFER_PKG_DIR)/hex/*.hex が存在する状態にする" >&2; \
+		echo "    3) 別パスに置いた場合は 'make flash-sniffer-dongle SNIFFER_PKG_DIR=/path/to/extracted' で指定" >&2; \
+		echo "  導入手順: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer.html" >&2; \
 		exit 1; \
 	fi; \
 	port="$(SERIAL_PORT)"; \
@@ -307,5 +375,5 @@ clean: ## ビルド成果物を削除
 # ============================================================
 # .PHONY 指定（同名ファイルの有無に挙動を左右されないようにする）
 # ============================================================
-.PHONY: help setup check-os install-nrfutil install-tools install-sniffer build-firmware \
+.PHONY: help setup check-os install-nrfutil install-tools install-sniffer fetch-ncs build-firmware \
         flash-dk flash-sniffer-dongle verify clean

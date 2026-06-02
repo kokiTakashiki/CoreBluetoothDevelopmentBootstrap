@@ -25,12 +25,13 @@ jobs:
       - name: 全ターゲットが dry-run でパースできること
         run: |
           set -euo pipefail
-          targets="help setup check-os install-nrfutil install-tools install-sniffer build-firmware flash-dk flash-sniffer-dongle verify clean"
+          # fetch-ncs は数 GB DL のため smoke 実行はせず dry-run パースのみで検証する。
+          targets="help setup check-os install-nrfutil install-tools install-sniffer fetch-ncs build-firmware flash-dk flash-sniffer-dongle verify clean"
           for t in $targets; do
             echo "--- make -n $t ---"
             make -n "$t" >/dev/null
           done
-          echo "OK: 全 11 ターゲットがパース成功"
+          echo "OK: 全 12 ターゲットがパース成功"
 
       - name: 素の make（既定ゴール）が help を表示し副作用を持たないこと
         run: |
@@ -46,7 +47,7 @@ jobs:
           set -euo pipefail
           # setup の dry-run に各ターゲットの開始ログが期待順で現れることを確認
           out="$(make -n setup 2>&1)"
-          for needle in 'check-os: OK' 'install-tools: 導入状況' 'build-firmware:' 'flash-dk: 開発キット' 'install-sniffer:' 'flash-sniffer-dongle:' 'verify: 構築結果'; do
+          for needle in 'check-os: OK' 'install-tools: 導入状況' 'fetch-ncs: NCS' 'build-firmware:' 'flash-dk: 開発キット' 'install-sniffer:' 'flash-sniffer-dongle:' 'verify: 構築結果'; do
             echo "$out" | grep -qF "$needle" || { echo "::error::依存解決に $needle が含まれていません"; exit 1; }
           done
           echo "OK: setup の依存グラフが設計どおり"
