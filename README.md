@@ -45,8 +45,6 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 2. nRF52840 DK とドングルを接続する。
 3. `make verify` を実行する。実機へファームウェアを書き込んだうえで、DK が BLE で広告しているか、Wireshark に Sniffer インタフェースが現れるかを検査する。これにより、環境整備が正常に完了したかを確認できる。
 
-`make verify` は書き込みの前に `[y/N]` で確認し、`y` と答えたときだけ書き込む（既定は N）。書き込みだけを行いたい場合は `make deploy` を使う。
-
 > **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
 > - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
 > - ドングルは `/dev/tty.usbmodem*` として列挙される。複数検出された場合は `SERIAL_PORT=` で対象を明示する。
