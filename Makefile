@@ -87,12 +87,12 @@ check-os: ## 実行環境の前提確認（arm64 / Homebrew）
 	@echo "==> check-os: OK (arm64 / Homebrew あり)"
 
 # ============================================================
-# install-tools : 各ツールを導入（導入前に存在検査し、未導入のもののみ導入）
-#   nRF Connect SDK Toolchain / nrfutil / Wireshark / Python 依存(west)
+# install-nrfutil : nrfutil 本体を導入（最も壊れやすい工程を独立化）
+#   Homebrew cask は deprecated/Gatekeeper 不可で壊れた symlink を残すため使わず、
+#   Nordic 公式 arm64 バイナリを直接取得する。判定は --version の終了コードで行う。
+#   独立ターゲット化により CI が本工程だけを実機実行して検証できる（→ DL-6）。
 # ============================================================
-install-tools: check-os ## ツール導入（nrfutil/NCS/west/Wireshark）
-	@echo "==> install-tools: 導入状況を検査します"
-	# --- nrfutil 本体（公式 arm64 バイナリ。判定は --version の終了コードで行う）---
+install-nrfutil: check-os ## nrfutil 本体を導入（公式 arm64 バイナリ）
 	@if nrfutil --version >/dev/null 2>&1; then \
 		echo "    [skip] nrfutil は導入済み ($$(nrfutil --version 2>/dev/null | head -1))"; \
 	else \
@@ -104,6 +104,13 @@ install-tools: check-os ## ツール導入（nrfutil/NCS/west/Wireshark）
 		mv "$$tmp" "$(NRFUTIL_BIN)"; \
 		nrfutil --version; \
 	fi
+
+# ============================================================
+# install-tools : 各ツールを導入（導入前に存在検査し、未導入のもののみ導入）
+#   nrfutil サブコマンド / NCS Toolchain / Wireshark / Python 依存(west)
+# ============================================================
+install-tools: install-nrfutil ## ツール導入（nrfutil/NCS/west/Wireshark）
+	@echo "==> install-tools: 導入状況を検査します"
 	# --- nrfutil サブコマンド: toolchain-manager / device（install は冪等）---
 	@if nrfutil toolchain-manager --help >/dev/null 2>&1; then \
 		echo "    [skip] nrfutil toolchain-manager / device は導入済み"; \
@@ -300,5 +307,5 @@ clean: ## ビルド成果物を削除
 # ============================================================
 # .PHONY 指定（同名ファイルの有無に挙動を左右されないようにする）
 # ============================================================
-.PHONY: help setup check-os install-tools install-sniffer build-firmware \
+.PHONY: help setup check-os install-nrfutil install-tools install-sniffer build-firmware \
         flash-dk flash-sniffer-dongle verify clean
