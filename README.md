@@ -8,7 +8,8 @@ Core Bluetooth 検証環境（nRF Connect SDK / Wireshark / nRF Sniffer）をMak
 
 ```sh
 make                      # 既定ゴール = help（ターゲット一覧を表示・副作用なし）
-make setup                # 前提確認 → 導入 → ビルド → 検証 を一括実行
+make setup                # ソフトウェア環境構築（実機不要）: 前提確認 → 導入 → ビルド
+make deploy               # 実機へ書き込み＆検証（要 DK＋ドングル接続）
 make check-os             # 実行環境の前提確認（arm64 / Homebrew）
 make install-nrfutil      # nrfutil 本体を導入（公式 arm64 バイナリ）
 make install-tools        # nrfutil コマンド / NCS Toolchain / west / Wireshark を導入
@@ -17,7 +18,7 @@ make fetch-ncs            # NCS ソースツリーを取得（west init+update /
 make build-firmware       # peripheral_uart をビルド（未取得なら fetch-ncs が先に走る）
 make flash-dk             # 開発キットへ書き込み（要 DK 接続）
 make flash-sniffer-dongle # ドングルへ Sniffer FW を書き込み（要ドングル）
-make verify               # 広告 / Sniffer インタフェースの検査
+make verify               # 広告 / Sniffer インタフェースの検査（読み取り専用・要フラッシュ済み）
 make clean                # ビルド成果物を削除
 ```
 
@@ -25,7 +26,7 @@ make clean                # ビルド成果物を削除
 
 ## `make setup` が導入するもの
 
-`make setup` は依存ターゲット（`install-tools` / `install-sniffer`）を通じて以下を導入する。各項目は導入前に存在検査され、導入済みならスキップされる（冪等）。
+`make setup` は依存ターゲット（`install-tools`）を通じて以下を導入する。各項目は導入前に存在検査され、導入済みならスキップされる（冪等）。なお nRF Sniffer extcap プラグインの配置（`install-sniffer`）は `deploy` 系（`flash-sniffer-dongle`）の依存で実行される。
 
 | ツール | 入手元 | 配置先 | 用途 | 区分 |
 | --- | --- | --- | --- | --- |
@@ -40,7 +41,7 @@ make clean                # ビルド成果物を削除
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
-> `make setup` はこれらの導入に加えて、ファームウェアのビルド（`build-firmware`）と**実機への書き込み**（`flash-dk` / `flash-sniffer-dongle`）・検証（`verify`）まで実行する。書き込みには **DK / ドングルの接続が必須**。
+> `make setup` は**ソフトウェア環境構築（実機不要）**に限定され、これらの導入に加えてファームウェアのビルド（`build-firmware`）まで実行する。実機が無くても完走する。**実機への書き込み**（`flash-dk` / `flash-sniffer-dongle`）・検証（`verify`）は `make deploy` で行い、**DK / ドングルの接続が必須**。
 
 > **NCS ソースツリーの自動取得（`fetch-ncs`）:** `install-tools` の `nrfutil toolchain-manager install` は **ツールチェイン（コンパイラ・Zephyr 依存）のみ**を導入し、`nrf/`・`zephyr/`・`samples/` を含む **NCS ソースツリーは取得しない**。そのため `build-firmware` は `fetch-ncs` に依存し、未取得時に `west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION)` + `west update` + `west zephyr-export` で `$(HOME)/ncs/$(NCS_VERSION)` へソースを展開する（Nordic 公式手順: [Installing the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html)）。**数 GB のダウンロード**を伴うため初回は時間がかかる。`SAMPLE_DIR` か `$(NCS_BASE)/.west` が既にあれば再取得しない（冪等）。
 
