@@ -361,7 +361,19 @@ deploy: flash-dk flash-sniffer-dongle ## 実機へファームウェアを書き
 #   - Wireshark に Sniffer インタフェースが出現しているか
 #   フラッシュ済みを前提とする読み取り専用検査。書き込みは deploy が行う（→ DL-9）。
 # ============================================================
-verify: ## 広告 / Sniffer インタフェースの検査（読み取り専用・要フラッシュ済み）
+verify: ## 実機へ書き込み(確認の上)→広告/Sniffer インタフェースを検査
+	@# 書き込みは副作用のため [y/N] 確認を取り、y のときだけ deploy(書き込み)を実行する。
+	@# 確認をフラッシュ前に出す必要があるため make 依存ではなくレシピ内でサブ実行する。
+	@# 再帰に MAKE 変数ではなく literal `make` を使うのは、MAKE 変数を含む行が
+	@# `make -n`(dry-run) でも実行され、確認プロンプトが誤って出てしまうのを避けるため。
+	@printf "実機へファームウェアの書き込み（flash-dk / flash-sniffer-dongle）が行われます。問題ないですか？ [y/N]: "; \
+	read -r ans </dev/tty 2>/dev/null || ans=""; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		echo "==> 書き込みを実行します (make deploy)"; \
+		make deploy; \
+	else \
+		echo "==> 書き込みをスキップし、現在の状態を検査します（書き込みは make deploy で）"; \
+	fi
 	@echo "==> verify: 構築結果を検査します"
 	# 注: macOS 標準の make 3.81 は .ONESHELL 非対応のため、レシピ行をまたいだ
 	# 変数共有はできない。検査全体を 1 つのシェルチェーンに閉じて状態を持たせる。

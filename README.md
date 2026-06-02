@@ -18,7 +18,7 @@ make fetch-ncs            # NCS ソースツリーを取得（west init+update /
 make build-firmware       # peripheral_uart をビルド（未取得なら fetch-ncs が先に走る）
 make flash-dk             # 開発キットへ書き込み（要 DK 接続）
 make flash-sniffer-dongle # ドングルへ Sniffer FW を書き込み（要ドングル）
-make verify               # 広告 / Sniffer インタフェースの検査（読み取り専用・要フラッシュ済み）
+make verify               # フルフロー: 確認[y/N]→y なら書き込み(deploy)→広告/Sniffer 検査
 make clean                # ビルド成果物を削除
 ```
 
@@ -41,7 +41,12 @@ make clean                # ビルド成果物を削除
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
-> `make setup` は**ソフトウェア環境構築（実機不要）**に限定され、これらの導入に加えてファームウェアのビルド（`build-firmware`）まで実行する。実機が無くても完走する。**実機への書き込み**（`flash-dk` / `flash-sniffer-dongle`）は `make deploy` で行い（**DK / ドングルの接続が必須**）、**検証**（広告 / Sniffer インタフェース）は読み取り専用の `make verify` で別途行う。書き込みと検証を続けて行うなら `make deploy verify` と並べて指定する（書き込み＝副作用ありと検証＝読み取り専用は関心を分離している）。
+> **3 つの入口（関心の分離）:**
+> - `make setup` … **ソフトウェア環境構築（実機不要）**。前提確認→ツール導入→ファームウェアビルドまで。実機が無くても完走する。
+> - `make deploy` … **実機へ書き込みのみ**（`flash-dk` / `flash-sniffer-dongle`）。確認なしの素のフラッシュ。**DK / ドングルの接続が必須**。
+> - `make verify` … **確認付きフルフローの入口**。`[y/N]` で「実機へ書き込みが行われます。問題ないですか？」と確認し、**`y` のときだけ書き込み（`deploy`）を実行**してから広告 / Sniffer インタフェースを検査する（既定 N。`y` 以外なら書き込みをスキップし現在状態を検査）。
+>
+> 書き込みは副作用なので明示同意（`y`）を経た場合のみ実行される。`make -n verify`（dry-run）では確認は出ない。
 
 > **NCS ソースツリーの自動取得（`fetch-ncs`）:** `install-tools` の `nrfutil toolchain-manager install` は **ツールチェイン（コンパイラ・Zephyr 依存）のみ**を導入し、`nrf/`・`zephyr/`・`samples/` を含む **NCS ソースツリーは取得しない**。そのため `build-firmware` は `fetch-ncs` に依存し、未取得時に `west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION)` + `west update` + `west zephyr-export` で `$(HOME)/ncs/$(NCS_VERSION)` へソースを展開する（Nordic 公式手順: [Installing the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html)）。**数 GB のダウンロード**を伴うため初回は時間がかかる。`SAMPLE_DIR` か `$(NCS_BASE)/.west` が既にあれば再取得しない（冪等）。
 
