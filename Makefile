@@ -158,6 +158,18 @@ install-tools: install-nrfutil ## ツール導入（nrfutil/NCS/west/Wireshark�
 		echo "    [install] nRF Connect for Desktop"; \
 		brew install --cask nrf-connect; \
 	fi
+	# --- nrfjprog ＋ SEGGER J-Link（DK の J-Link 書き込みに必須）---
+	# nordic-nrf-command-line-tools cask は依存として segger-jlink を連れてくるため、
+	# 1 つで nrfjprog と J-Link の両方が入る。いずれも .pkg インストーラのため、
+	# 導入時に macOS の sudo パスワード入力を求められる場合がある（一度きり）。
+	# 判定は壊れ検出に強い `nrfjprog --version` の終了コードで行う。
+	@if nrfjprog --version >/dev/null 2>&1; then \
+		echo "    [skip] nrfjprog / J-Link は導入済み ($$(nrfjprog --version 2>/dev/null | head -1))"; \
+	else \
+		echo "    [install] nRF Command Line Tools (nrfjprog) ＋ SEGGER J-Link"; \
+		echo "             ※ .pkg インストールのため sudo パスワードを求められる場合があります"; \
+		brew install --cask nordic-nrf-command-line-tools; \
+	fi
 	@echo "==> install-tools: 完了"
 
 # ============================================================
