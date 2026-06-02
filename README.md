@@ -1,6 +1,6 @@
 # CoreBluetoothDevelopmentBootstrap
 
-Core Bluetooth 検証環境（nRF Connect SDK / Wireshark / nRF Sniffer）を **冪等な Makefile** で構築する個人用ブートストラップ。
+Core Bluetooth 検証環境（nRF Connect SDK / Wireshark / nRF Sniffer）をMakefileで構築する個人用ブートストラップ。
 
 > 対象: Apple Silicon Mac。Xcode / iOS 実機署名の自動化は対象外。
 
