@@ -70,7 +70,7 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
-> **NCS ソースツリーの自動取得（`fetch-ncs`）:** `install-tools` の `nrfutil toolchain-manager install` は **ツールチェイン（コンパイラ・Zephyr 依存）のみ**を導入し、`nrf/`・`zephyr/`・`samples/` を含む **NCS ソースツリーは取得しない**。そのため `build-firmware` は `fetch-ncs` に依存し、未取得時に `west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION)` + `west update` + `west zephyr-export` で `$(HOME)/ncs/$(NCS_VERSION)` へソースを展開する（Nordic 公式手順: [Installing the nRF Connect SDK](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html)）。**数 GB のダウンロード**を伴うため初回は時間がかかる。`SAMPLE_DIR` か `$(NCS_BASE)/.west` が既にあれば再取得しない（冪等）。
+> **初回は数 GB のダウンロードを伴う:** ファームウェアのビルドには、ツールチェインだけでなく NCS のソースツリー（`nrf/`・`zephyr/`・`samples/` など）も必要になる。ソースツリーは `fetch-ncs` が `$(HOME)/ncs/$(NCS_VERSION)` へ取得し、`make setup`（`build-firmware` 経由）が自動で呼び出す。合計で数 GB あるため初回は時間がかかる。取得済みなら再ダウンロードしない。`west` を使った取得手順の詳細は [docs/DESIGN-001.md](docs/DESIGN-001.md) を参照。
 
 **`make setup` では導入されず、事前に用意が必要なもの**:
 
