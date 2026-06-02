@@ -24,21 +24,21 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 
 ## 使い方
 
-```sh
-make                      # ターゲット一覧を表示する
-make setup                # ソフトウェア環境構築
-make deploy               # 実機へファームウェアを書き込む（要 DK＋ドングル接続。検証は make verify）
-make check-os             # 実行環境の前提確認（arm64 / Homebrew）
-make install-nrfutil      # nrfutil 本体を導入（公式 arm64 バイナリ）
-make install-tools        # nrfutil コマンド / NCS Toolchain / west / Wireshark を導入
-make install-sniffer      # nRF Sniffer の extcap プラグインを配置
-make fetch-ncs            # NCS ソースツリーを取得（数 GB のダウンロード）
-make build-firmware       # peripheral_uart をビルド（未取得なら fetch-ncs が先に走る）
-make flash-dk             # 開発キットへ書き込み（要 DK 接続）
-make flash-sniffer-dongle # ドングルへ Sniffer FW を書き込み（要ドングル）
-make verify               # 書き込みと検査をまとめて実行（実行前に [y/N] 確認、既定 N）
-make clean                # ビルド成果物を削除
-```
+| コマンド | 説明 |
+| --- | --- |
+| `make` | ターゲット一覧を表示する。 |
+| `make setup` | ソフトウェア環境を構築する。前提の確認、ツールの導入、ファームウェアのビルドまでを行う。 |
+| `make deploy` | ファームウェアを実機へ書き込む。DK とドングルの接続が必要で、書き込み結果の検証は `make verify` で行う。 |
+| `make check-os` | 実行環境の前提を確認する。arm64 アーキテクチャかどうかと、Homebrew がインストールされているかを調べる。 |
+| `make install-nrfutil` | nrfutil 本体を導入する。Nordic 公式の arm64 バイナリを使う。 |
+| `make install-tools` | nrfutil コマンド・NCS Toolchain・west・Wireshark を導入する。 |
+| `make install-sniffer` | nRF Sniffer の extcap プラグインを配置する。 |
+| `make fetch-ncs` | NCS ソースツリーを取得する。数 GB のダウンロードを伴う。 |
+| `make build-firmware` | peripheral_uart をビルドする。ソース未取得なら先に fetch-ncs が実行される。 |
+| `make flash-dk` | 開発キット（DK）へ書き込む。DK の接続が必要。 |
+| `make flash-sniffer-dongle` | ドングルへ Sniffer ファームウェアを書き込む。ドングルの接続が必要。 |
+| `make verify` | 書き込みと検査をまとめて実行する。実行前に `[y/N]` で確認し、既定は N。 |
+| `make clean` | ビルド成果物を削除する。 |
 
 > **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
 > - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
