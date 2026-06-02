@@ -344,14 +344,16 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 	@echo "==> flash-sniffer-dongle: 完了"
 
 # ============================================================
-# deploy : 実機へ書き込み＆検証（要 DK＋ドングル接続）
+# deploy : 実機へファームウェアを書き込む（要 DK＋ドングル接続）
+#   書き込み（副作用あり）のみを担う。検証は読み取り専用の `verify` に分離し、
+#   deploy には含めない（書き込みと検証で関心を分離する → DL-9）。
 #   非並列 make では prerequisite が左→右順に実行されるため、
-#   flash-dk → flash-sniffer-dongle → verify の順に走る。
-#   verify から flash 依存を外したことで flash-dk の二重実行を防ぐ（→ DL-9）。
+#   flash-dk → flash-sniffer-dongle の順に走る。
+#   検証まで一括で行いたい場合は `make deploy verify` と並べて指定する。
 # ============================================================
-deploy: flash-dk flash-sniffer-dongle verify ## 実機へ書き込み＆検証（要 DK＋ドングル接続）
+deploy: flash-dk flash-sniffer-dongle ## 実機へファームウェアを書き込む（要 DK＋ドングル接続。検証は make verify）
 	@echo ""
-	@echo "==> deploy 完了: 実機への書き込み＆検証を一括実行しました。"
+	@echo "==> deploy 完了: 実機への書き込みを実行しました。検証は 'make verify' で行ってください。"
 
 # ============================================================
 # verify : 構築結果を検査（読み取り専用 / 状態を変更しない）
