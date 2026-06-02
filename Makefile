@@ -37,17 +37,23 @@ BUILD_DIR  ?= $(CURDIR)/build
 NRFUTIL_BIN ?= $(shell brew --prefix 2>/dev/null)/bin/nrfutil
 NRFUTIL_URL ?= https://files.nordicsemi.com/ui/api/v1/download?repoKey=swtools&path=external/nrfutil/executables/aarch64-apple-darwin/nrfutil&isNativeBrowsing=false
 
-# Sniffer ファームウェア（dongle 書き込み用 hex）と extcap プラグインのソース。
-# nRF Sniffer 配布物のバージョンに追随する。
-SNIFFER_PKG_DIR    ?= $(HOME)/nrf_sniffer_for_bluetooth_le
-SNIFFER_HEX        ?= $(SNIFFER_PKG_DIR)/hex/sniffer_nrf52840dongle_nrf52840_*.hex
-SNIFFER_EXTCAP_SRC ?= $(SNIFFER_PKG_DIR)/extcap
+# nRF Sniffer のセットアップは nrfutil の `ble-sniffer` コマンドで自動化する（→ DL-12）。
+# extcap プラグイン・dongle 書き込み用ファームウェアの双方が ble-sniffer に内蔵され、
+# 手動の nRF Sniffer 配布物 zip は不要になった。手動準備は「実機接続のみ」。
+#
+# dongle 書き込み用ファームウェア（DFU zip）。`nrfutil install ble-sniffer` が
+# $(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware 配下に同梱する。
+# バージョンは ble-sniffer プラグインに追随するため glob で解決する。
+SNIFFER_FW_DIR      ?= $(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware
+SNIFFER_DONGLE_FW   ?= $(SNIFFER_FW_DIR)/sniffer_nrf52840dongle_nrf52840_*.zip
 
 # extcap プラグインの配置先。macOS のユーザー領域パスを既定とする。
 WIRESHARK_EXTCAP_DIR ?= $(HOME)/.local/lib/wireshark/extcap
 
-# 書き込み対象シリアルポート。未指定時は flash 系ターゲットで自動検出を試み、
-# 複数検出時はエラーで停止する。
+# dongle 選択の明示オーバーライド。未指定時は nordicDfu トレイトで自動検出する。
+# 複数の DFU デバイスが見つかった場合に nrfutil device program へ渡す
+# シリアル番号（`nrfutil device list --traits nordicDfu` で確認できる）を指定する。
+# 旧来の SERIAL_PORT（tty パス）はシリアル番号指定に置き換わった（→ DL-12）。
 SERIAL_PORT ?=
 
 # ============================================================
@@ -122,14 +128,6 @@ install-tools: install-nrfutil ## ツール導入（nrfutil/NCS/west/Wireshark�
 		nrfutil install toolchain-manager; \
 		nrfutil install device; \
 	fi
-	# --- nrfutil サブコマンド: nrf5sdk-tools（pkg generate / dfu usb-serial を提供）---
-	# 新 unified nrfutil 本体には pkg / dfu が無いため、ドングルの DFU 書き込みに必須（→ DL-5）。
-	@if nrfutil nrf5sdk-tools --help >/dev/null 2>&1; then \
-		echo "    [skip] nrfutil nrf5sdk-tools は導入済み"; \
-	else \
-		echo "    [install] nrfutil コマンド (nrf5sdk-tools: pkg/dfu 提供)"; \
-		nrfutil install nrf5sdk-tools; \
-	fi
 	# --- nRF Connect SDK Toolchain（NCS_VERSION で固定）---
 	@if nrfutil toolchain-manager list 2>/dev/null | grep -q "$(NCS_VERSION)"; then \
 		echo "    [ok] NCS Toolchain $(NCS_VERSION)"; \
@@ -173,40 +171,34 @@ install-tools: install-nrfutil ## ツール導入（nrfutil/NCS/west/Wireshark�
 	@echo "==> install-tools: 完了"
 
 # ============================================================
-# install-sniffer : nRF Sniffer の extcap プラグインを配置
-#   配置元と配置先の shasum を比較し、一致時は再配置しない（冪等）
+# install-sniffer : nRF Sniffer の extcap プラグインを Wireshark へ配置
+#   nrfutil の `ble-sniffer` コマンドを導入し、その `bootstrap` サブコマンドで
+#   extcap shim を $(WIRESHARK_EXTCAP_DIR) に配置する。手動 zip は不要（→ DL-12）。
+#   一次情報: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer_capture_tool.html
+#
+#   冪等性:
+#     - ble-sniffer 導入は `nrfutil ble-sniffer --help` の終了コードでガード（導入済みなら skip）。
+#     - bootstrap は shim を再配置するが結果状態は同一（実質冪等）。配置先のみ毎回更新。
 # ============================================================
-install-sniffer: install-tools ## nRF Sniffer の extcap プラグインを配置
-	@echo "==> install-sniffer: extcap プラグインを配置します"
-	@if [ ! -d "$(SNIFFER_EXTCAP_SRC)" ]; then \
-		echo "ERROR(install-sniffer): Sniffer extcap ソースが見つかりません: $(SNIFFER_EXTCAP_SRC)" >&2; \
-		echo "  nRF Sniffer for Bluetooth LE 配布物（zip）が未展開です。" >&2; \
-		echo "  対処:" >&2; \
-		echo "    1) ダウンロード: https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE" >&2; \
-		echo "    2) zip を展開し、その中身を SNIFFER_PKG_DIR に配置（既定: $(SNIFFER_PKG_DIR)）" >&2; \
-		echo "       → 展開後に $(SNIFFER_EXTCAP_SRC) が存在する状態にする" >&2; \
-		echo "    3) 別パスに置いた場合は 'make install-sniffer SNIFFER_PKG_DIR=/path/to/extracted' で指定" >&2; \
-		echo "  導入手順: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer.html" >&2; \
+install-sniffer: install-tools ## nRF Sniffer の extcap プラグインを配置（nrfutil ble-sniffer）
+	@echo "==> install-sniffer: nRF Sniffer extcap を配置します（nrfutil ble-sniffer）"
+	# --- nrfutil サブコマンド: ble-sniffer（extcap shim と dongle FW を内蔵）---
+	@if nrfutil ble-sniffer --help >/dev/null 2>&1; then \
+		echo "    [skip] nrfutil ble-sniffer は導入済み"; \
+	else \
+		echo "    [install] nrfutil コマンド (ble-sniffer: extcap / dongle FW を内蔵)"; \
+		nrfutil install ble-sniffer; \
+	fi
+	# --- extcap ディレクトリへ shim を配置（bootstrap）---
+	# bootstrap は extcap dir が存在しないと失敗するため先に mkdir する。
+	@mkdir -p "$(WIRESHARK_EXTCAP_DIR)"
+	@if ! nrfutil ble-sniffer bootstrap --extcap-dir "$(WIRESHARK_EXTCAP_DIR)"; then \
+		echo "ERROR(install-sniffer): ble-sniffer bootstrap に失敗しました。" >&2; \
+		echo "  extcap 配置先: $(WIRESHARK_EXTCAP_DIR)（WIRESHARK_EXTCAP_DIR で変更可）" >&2; \
+		echo "  一次情報: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer_capture_tool.html" >&2; \
 		exit 1; \
 	fi
-	@mkdir -p "$(WIRESHARK_EXTCAP_DIR)"
-	@changed=0; \
-	for src in "$(SNIFFER_EXTCAP_SRC)"/*; do \
-		[ -e "$$src" ] || continue; \
-		name="$$(basename "$$src")"; \
-		dst="$(WIRESHARK_EXTCAP_DIR)/$$name"; \
-		src_h="$$(shasum "$$src" | awk '{print $$1}')"; \
-		dst_h="$$([ -f "$$dst" ] && shasum "$$dst" | awk '{print $$1}' || echo none)"; \
-		if [ "$$src_h" = "$$dst_h" ]; then \
-			echo "    [skip] $$name (ハッシュ一致)"; \
-		else \
-			echo "    [copy] $$name"; \
-			cp "$$src" "$$dst"; \
-			chmod +x "$$dst" 2>/dev/null || true; \
-			changed=1; \
-		fi; \
-	done; \
-	echo "==> install-sniffer: 完了 (更新 $$changed 件)"
+	@echo "==> install-sniffer: 完了（extcap 配置先: $(WIRESHARK_EXTCAP_DIR)）"
 
 # ============================================================
 # fetch-ncs : nRF Connect SDK のソースツリーを取得（west init + update）
@@ -309,50 +301,49 @@ flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 
 # ============================================================
 # flash-sniffer-dongle : USB ドングルへ Sniffer FW を書き込む
-#   Open Bootloader 経由の DFU を用いる。手順は 2 段:
-#     1) hex を署名付き DFU パッケージ(zip)へ変換（pkg generate）
-#     2) zip をブートローダへシリアル転送（dfu usb-serial）
-#   いずれも新 unified nrfutil の `nrf5sdk-tools` コマンドが提供する。
-#   旧 pc-nrfutil の `nrfutil pkg` / `nrfutil dfu` は新 nrfutil 本体に無い（→ DL-5）。
-#   ドングルは RESET ボタンで Open Bootloader(LED 赤点滅)にし /dev/tty.usbmodem* で接続する。
-#   同一ファームウェアの再書き込みは結果を変えない（実質冪等）
+#   ble-sniffer 同梱の署名付き DFU zip を `nrfutil device program` で書き込む（→ DL-12）。
+#   ドングルは RESET ボタンで Open Bootloader(LED 赤点滅 = nordicDfu トレイト)にしておく。
+#   firmware の拡張子(.zip = SdfuZip)とトレイト(nordicDfu)から Nordic secure DFU が選択され、
+#   ポート(tty)指定や hex→zip 変換は不要になった（旧 nrf5sdk-tools pkg/dfu 手順を撤去）。
+#   一次情報: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html
+#
+#   デバイス選択:
+#     - 既定は `--traits nordicDfu` で DFU モードのドングルを自動選択する。
+#     - SERIAL_PORT を指定した場合は `--serial-number` として明示選択する（複数台時）。
+#   ガード: 事前に nordicDfu デバイス数を確認し、0 台は明示エラー、複数台は SERIAL_PORT を促す。
+#   同一ファームウェアの再書き込みは結果を変えない（実質冪等）。
 # ============================================================
-flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込み（要ドングル）
+flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込み（要ドングル / nrfutil ble-sniffer 同梱 FW）
 	@echo "==> flash-sniffer-dongle: ドングルへ Sniffer FW を書き込みます"
-	@hex="$$(ls $(SNIFFER_HEX) 2>/dev/null | head -n1 || true)"; \
-	if [ -z "$$hex" ]; then \
-		echo "ERROR(flash-sniffer-dongle): Sniffer hex が見つかりません: $(SNIFFER_HEX)" >&2; \
-		echo "  nRF Sniffer for Bluetooth LE 配布物（zip）が未展開か、SNIFFER_PKG_DIR が誤っています。" >&2; \
-		echo "  対処:" >&2; \
-		echo "    1) ダウンロード: https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE" >&2; \
-		echo "    2) zip を展開し、その中身を SNIFFER_PKG_DIR に配置（既定: $(SNIFFER_PKG_DIR)）" >&2; \
-		echo "       → 展開後に $(SNIFFER_PKG_DIR)/hex/*.hex が存在する状態にする" >&2; \
-		echo "    3) 別パスに置いた場合は 'make flash-sniffer-dongle SNIFFER_PKG_DIR=/path/to/extracted' で指定" >&2; \
-		echo "  導入手順: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer.html" >&2; \
+	@fw="$$(ls $(SNIFFER_DONGLE_FW) 2>/dev/null | head -n1 || true)"; \
+	if [ -z "$$fw" ]; then \
+		echo "ERROR(flash-sniffer-dongle): dongle 用 Sniffer ファームウェアが見つかりません: $(SNIFFER_DONGLE_FW)" >&2; \
+		echo "  ble-sniffer 同梱の FW が未導入の可能性があります。" >&2; \
+		echo "  対処: 'make install-sniffer'（または 'nrfutil install ble-sniffer'）を実行してください。" >&2; \
+		echo "  別パスに置いた場合は 'make flash-sniffer-dongle SNIFFER_DONGLE_FW=/path/to/sniffer_*.zip' で指定。" >&2; \
+		echo "  一次情報: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html" >&2; \
 		exit 1; \
 	fi; \
-	port="$(SERIAL_PORT)"; \
-	if [ -z "$$port" ]; then \
-		found="$$(ls /dev/tty.usbmodem* 2>/dev/null || true)"; \
-		n="$$(printf '%s\n' $$found | grep -c . || true)"; \
+	sel="$(SERIAL_PORT)"; \
+	if [ -z "$$sel" ]; then \
+		n="$$(nrfutil device list --traits nordicDfu 2>/dev/null | sed -n 's/^Supported devices found: //p' | head -n1)"; \
+		[ -n "$$n" ] || n=0; \
 		if [ "$$n" -eq 0 ]; then \
-			echo "ERROR(flash-sniffer-dongle): ドングルのシリアルポートが検出できません。" >&2; \
-			echo "  RESET ボタンで Open Bootloader(LED 赤点滅)にして接続するか、SERIAL_PORT= を明示してください。" >&2; \
+			echo "ERROR(flash-sniffer-dongle): DFU モードのドングルが検出できません。" >&2; \
+			echo "  RESET ボタンで Open Bootloader(LED 赤点滅)にして接続するか、SERIAL_PORT=<シリアル番号> を明示してください。" >&2; \
+			echo "  接続中の DFU デバイスは 'nrfutil device list --traits nordicDfu' で確認できます。" >&2; \
 			exit 1; \
 		elif [ "$$n" -gt 1 ]; then \
-			echo "ERROR(flash-sniffer-dongle): シリアルポートが複数検出されました。SERIAL_PORT= を明示してください:" >&2; \
-			printf '    %s\n' $$found >&2; \
+			echo "ERROR(flash-sniffer-dongle): DFU モードのデバイスが複数検出されました（$$n 台）。SERIAL_PORT=<シリアル番号> を明示してください:" >&2; \
+			nrfutil device list --traits nordicDfu >&2 || true; \
 			exit 1; \
 		fi; \
-		port="$$found"; \
-	fi; \
-	echo "    対象ポート: $$port / hex: $$hex"; \
-	mkdir -p "$(BUILD_DIR)"; \
-	zip="$(BUILD_DIR)/sniffer_dfu.zip"; \
-	rm -f "$$zip"; \
-	nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x00 \
-		--application "$$hex" --application-version 1 "$$zip"; \
-	nrfutil nrf5sdk-tools dfu usb-serial -pkg "$$zip" -p "$$port"
+		echo "    対象: nordicDfu デバイス（自動検出 1 台） / fw: $$fw"; \
+		nrfutil device program --firmware "$$fw" --traits nordicDfu; \
+	else \
+		echo "    対象: serial-number=$$sel / fw: $$fw"; \
+		nrfutil device program --firmware "$$fw" --serial-number "$$sel"; \
+	fi
 	@echo "==> flash-sniffer-dongle: 完了"
 
 # ============================================================
