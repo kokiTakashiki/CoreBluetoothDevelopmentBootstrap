@@ -19,24 +19,24 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | DFU | Device Firmware Update | ファームウェアを書き込む方式の一つ。ここではドングルへの USB 経由の書き込みに使う。 |
 | Open Bootloader | — | nRF52840 Dongle に最初から書かれている DFU 用のブートローダ。RESET ボタンで起動する。 |
 | extcap | external capture | Wireshark が外部プログラムをキャプチャ元として使う仕組み。nRF Sniffer はこの仕組みで BLE パケットを Wireshark に取り込む。 |
-| 既定ターゲット | default goal | 引数なしの `make` で実行されるターゲット。本リポジトリでは副作用のない `help`。 |
+| 既定ターゲット | default goal | 引数なしの `make` で実行されるターゲット。本リポジトリでは `help`。 |
 | 冪等（べきとう） | idempotent | 何回実行しても結果が変わらないこと。本リポジトリでは「導入済みなら処理をスキップする」という意味で使う。 |
 
 ## 使い方
 
 ```sh
 make                      # ターゲット一覧を表示する
-make setup                # ソフトウェア環境構築（実機不要）: 前提確認 → 導入 → ビルド
+make setup                # ソフトウェア環境構築
 make deploy               # 実機へファームウェアを書き込む（要 DK＋ドングル接続。検証は make verify）
 make check-os             # 実行環境の前提確認（arm64 / Homebrew）
 make install-nrfutil      # nrfutil 本体を導入（公式 arm64 バイナリ）
 make install-tools        # nrfutil コマンド / NCS Toolchain / west / Wireshark を導入
 make install-sniffer      # nRF Sniffer の extcap プラグインを配置
-make fetch-ncs            # NCS ソースツリーを取得（west init+update / 数 GB DL）
+make fetch-ncs            # NCS ソースツリーを取得（数 GB のダウンロード）
 make build-firmware       # peripheral_uart をビルド（未取得なら fetch-ncs が先に走る）
 make flash-dk             # 開発キットへ書き込み（要 DK 接続）
 make flash-sniffer-dongle # ドングルへ Sniffer FW を書き込み（要ドングル）
-make verify               # 確認付きで「書き込み→検査」を一括実行（[y/N]、既定 N。y のときだけ deploy）
+make verify               # 書き込みと検査をまとめて実行（実行前に [y/N] 確認、既定 N）
 make clean                # ビルド成果物を削除
 ```
 
@@ -63,9 +63,9 @@ make clean                # ビルド成果物を削除
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
 > **3 つの入口（役割ごとに分離）:**
-> - `make setup` … **ソフトウェア環境構築（実機不要）**。前提確認 → ツール導入 → ファームウェアビルドまで。実機が無くても最後まで完走する。
+> - `make setup` … **ソフトウェア環境構築**。前提の確認、ツールの導入、ファームウェアのビルドを行う。実機が無くても完走する。
 > - `make deploy` … **実機へ書き込むだけ**（`flash-dk` / `flash-sniffer-dongle`）。確認を挟まないそのままの書き込み。**DK / ドングルの接続が必須**。
-> - `make verify` … **「書き込み → 検査」を確認付きで一括実行する入口**。`[y/N]` で「実機へ書き込みが行われます。問題ないですか？」と確認し、**`y` のときだけ書き込み（`deploy`）を実行**してから、広告 / Sniffer インタフェースを検査する（既定 N。`y` 以外なら書き込みをスキップして現在の状態だけを検査）。
+> - `make verify` … **書き込みと検査をまとめて実行する入口**。`[y/N]` で「実機へ書き込みが行われます。問題ないですか？」と確認し、**`y` のときだけ書き込み（`deploy`）を実行**してから、広告 / Sniffer インタフェースを検査する（既定 N。`y` 以外なら書き込みをスキップして現在の状態だけを検査）。
 >
 > 書き込みは副作用なので、明示同意（`y`）があったときだけ実行される。`make -n verify`（dry-run）では確認プロンプトは出ない。
 
