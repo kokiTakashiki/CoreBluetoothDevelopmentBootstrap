@@ -50,9 +50,9 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 > - ドングルは `/dev/tty.usbmodem*` として列挙される。複数検出された場合は `SERIAL_PORT=` で対象を明示する。
 > - ドングルへの書き込みは nrfutil の `nrf5sdk-tools` コマンドで行う。`pkg generate` でパッケージを作り、続けて `dfu usb-serial` で書き込む。ここでいう nrfutil は、機能を `nrfutil install <名前>` で後から追加していく現行の単一実行ファイル版を指す（Nordic はこれを "unified nrfutil" と呼ぶ）。
 
-## `make setup` が導入するもの
+## 必要なツール一覧
 
-`make setup` は以下を導入する。各項目は導入前に存在を確認し、導入済みならスキップする。ただし最後の nRF Sniffer extcap プラグインだけは例外で、`make setup` では配置されない。これはドングルへ書き込む `flash-sniffer-dongle` が配置を行い、`make deploy` はその `flash-sniffer-dongle` を呼び出す。
+本リポジトリが使うツールの一覧。基本的に `make setup` が公式ソースから自動で導入し、すでに導入済みのものはスキップする。nRF Sniffer の extcap プラグインだけは `make setup` では導入されず、ドングルへ書き込む `flash-sniffer-dongle` の実行時に配置される。
 
 | ツール | 入手元 | 配置先 | 用途 | 区分 |
 | --- | --- | --- | --- | --- |
