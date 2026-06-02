@@ -19,6 +19,32 @@ make verify               # 広告 / Sniffer インタフェースの検査
 make clean                # ビルド成果物を削除
 ```
 
+## `make setup` が導入するもの
+
+`make setup` は依存ターゲット（`install-tools` / `install-sniffer`）を通じて以下を導入する。各項目は導入前に存在検査され、導入済みならスキップされる（冪等）。
+
+| ツール | 入手元 | 配置先 | 用途 | 区分 |
+| --- | --- | --- | --- | --- |
+| **nrfutil**（本体） | Nordic 公式 arm64 バイナリ（`files.nordicsemi.com`） | `$(brew --prefix)/bin/nrfutil` | NCS ツールチェイン管理・デバイス操作の統合 CLI | 必須 |
+| nrfutil **toolchain-manager** コマンド | `nrfutil install toolchain-manager` | nrfutil 管理下 | NCS ツールチェインの導入 / `launch` 実行 | 必須 |
+| nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | 接続デバイスの操作 | 必須 |
+| **NCS Toolchain**（`NCS_VERSION`） | `nrfutil toolchain-manager install` | `/opt/nordic/ncs/toolchains/…` | Zephyr/NCS のコンパイラ・ビルド依存一式（数 GB） | 必須 |
+| **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
+| **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
+| **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
+| **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
+
+> `make setup` はこれらの導入に加えて、ファームウェアのビルド（`build-firmware`）と**実機への書き込み**（`flash-dk` / `flash-sniffer-dongle`）・検証（`verify`）まで実行する。書き込みには **DK / ドングルの接続が必須**。
+
+**`make setup` では導入されない前提物**（別途用意が必要）:
+
+| 前提物 | 用途 | 補足 |
+| --- | --- | --- |
+| Homebrew | 各 cask / nrfutil 配置先の基盤 | `check-os` が存在を検査（無ければ停止） |
+| nRF Sniffer 配布物 | extcap プラグイン・Sniffer hex の供給元 | `SNIFFER_PKG_DIR` に展開しておく |
+| nrfjprog（nRF Command Line Tools） | `flash-dk` の J-Link 書き込み | 未導入時は `flash-dk` が明示エラーで停止 |
+| 実機（nRF52840 DK / Dongle） | フラッシュ・検証 | `flash-*` / `verify` で必要 |
+
 主な変数（`make build-firmware BOARD=... NCS_VERSION=...` で上書き可）:
 
 | 変数 | 既定値 | 用途 |
