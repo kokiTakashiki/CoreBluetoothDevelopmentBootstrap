@@ -48,7 +48,7 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 > **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
 > - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
 > - ドングルは `/dev/tty.usbmodem*` として列挙される。複数検出された場合は `SERIAL_PORT=` で対象を明示する。
-> - ドングルへの書き込みは nrfutil の `nrf5sdk-tools` コマンドで行う。`pkg generate` でパッケージを作り、続けて `dfu usb-serial` で書き込む。ここでいう nrfutil は、機能を `nrfutil install <名前>` で後から追加していく現行の単一実行ファイル版を指す（Nordic はこれを "unified nrfutil" と呼ぶ）。
+> - ドングルへの書き込みは nrfutil の `nrf5sdk-tools` コマンドで行う。`pkg generate` でパッケージを作り、続けて `dfu usb-serial` で書き込む。ここでいう nrfutil は、機能を `nrfutil install <名前>` で後から追加していく現行の単一実行ファイル版を指す。Nordic はこれを "unified nrfutil" と呼ぶ。
 
 ## 必要なツール一覧
 
@@ -78,8 +78,6 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | nRF Sniffer 配布物 | extcap プラグイン・Sniffer hex の供給元 | `SNIFFER_PKG_DIR` に展開しておく（Nordic の[配布ページ](https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE/Download)からダウンロード） |
 | 実機（nRF52840 DK / Dongle） | フラッシュ・検証 | `flash-*` / `verify` で必要 |
 
-> nrfjprog ＋ SEGGER J-Link（DK の書き込みに必要）は `make setup` が自動で導入する。手動で用意が必要なのは、上記の nRF Sniffer 配布物と実機の接続だけ。
-
 ## 設定を変えたいとき
 
 ビルドや書き込みの挙動は、以下の Make 変数で変えられる。既定値のままでも動作するが、別のボードを対象にしたい、NCS のバージョンを変えたいといった場合は、コマンドラインで変数を渡して上書きする。
@@ -97,7 +95,7 @@ make build-firmware BOARD=... NCS_VERSION=...
 
 ## サードパーティのツールとライセンス
 
-本リポジトリに含まれるのは Makefile とドキュメントだけで、これらは MIT ライセンスです。**第三者のツール・SDK・ファームウェアは一切同梱しておらず**、`make` の実行時に各ツールを公式ソースからダウンロードします。これは Homebrew の formula や Nordic 公式の `nrf-docker` と同じ方式です。したがって本リポジトリの MIT ライセンスは自作物にのみ適用され、各ツールはそれぞれのライセンスや EULA に従います。本リポジトリのライセンスと各ツールのライセンスは、互いに独立しています。
+本リポジトリに含まれるのは Makefile とドキュメントだけであり、これらを MIT ライセンスで提供する。第三者のツール・SDK・ファームウェアは一切同梱しておらず、`make` の実行時に各ツールを公式ソースからダウンロードする。これは Homebrew の formula や Nordic 公式の `nrf-docker` と同じ方式である。したがって本リポジトリの MIT ライセンスは自作物にのみ適用され、各ツールはそれぞれのライセンスや EULA に従う。本リポジトリのライセンスと各ツールのライセンスは、互いに独立している。
 
 | ツール | 取得元 | ライセンス（概略） |
 | --- | --- | --- |
@@ -107,7 +105,7 @@ make build-firmware BOARD=... NCS_VERSION=...
 | nRF Sniffer for Bluetooth LE（extcap / FW） | Nordic 公式 | Nordic 独自ライセンス |
 | Wireshark | Homebrew cask | GPL-2.0-or-later |
 
-> 上表のライセンスは概略です。各ツールの「利用」には提供元の EULA／ライセンスが適用され、**それはツールを使う利用者が従うもの**です。本リポジトリはこれらを**再配布せず、取得を自動化するスクリプトのみ**を提供します。正確な条件は各提供元の一次ライセンス文書をご確認ください。
+> 上表のライセンスは概略である。各ツールの利用には提供元の EULA／ライセンスが適用され、それに従う主体はツールの利用者である。本リポジトリはこれらを再配布せず、取得を自動化するスクリプトのみを提供する。正確な条件は各提供元の一次ライセンス文書を参照のこと。
 
 ## ライセンス
 
