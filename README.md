@@ -1,6 +1,6 @@
 # CoreBluetoothDevelopmentBootstrap
 
-Core Bluetooth 検証環境（nRF Connect SDK / Wireshark / nRF Sniffer）を **冪等な Makefile** で構築する個人用ブートストラップ。設計は [DESIGN-001](docs/DESIGN-001.md) に基づく（意思決定ログ含む）。
+Core Bluetooth 検証環境（nRF Connect SDK / Wireshark / nRF Sniffer）を **冪等な Makefile** で構築する個人用ブートストラップ。
 
 > 対象: Apple Silicon Mac。Xcode / iOS 実機署名の自動化は対象外。
 
@@ -27,15 +27,6 @@ make clean                # ビルド成果物を削除
 | `BOARD` | `nrf52840dk_nrf52840` | ビルド対象ボード |
 | `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグイン配置先 |
 | `SERIAL_PORT` | 自動検出 | 書き込み対象ポート（複数検出時はエラー） |
-
-## 冪等性
-
-各ターゲットは状態検査つきの冪等な単位として定義され、何度実行しても同一の最終状態へ収束する。
-ハードウェア非依存部分（`check-os` / `clean` / 全ターゲットのパース・依存解決）は
-GitHub Actions（`.github/workflows/idempotency.yml`）で機械的に検証している。
-
-> 注: macOS 標準の GNU Make 3.81 は `.ONESHELL`/`.SHELLFLAGS` 非対応のため、各レシピは
-> 単一シェルチェーンで自己完結させている。`gmake` 3.82+ でも動作する。
 
 ## ライセンス
 
