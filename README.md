@@ -36,3 +36,7 @@ GitHub Actions（`.github/workflows/idempotency.yml`）で機械的に検証し�
 
 > 注: macOS 標準の GNU Make 3.81 は `.ONESHELL`/`.SHELLFLAGS` 非対応のため、各レシピは
 > 単一シェルチェーンで自己完結させている。`gmake` 3.82+ でも動作する。
+
+## ライセンス
+
+[MIT License](LICENSE) © 2026 kokiTakeda
