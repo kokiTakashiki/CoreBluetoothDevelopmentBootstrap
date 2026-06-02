@@ -81,14 +81,20 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | nrfjprog（nRF Command Line Tools） | `flash-dk` の J-Link 書き込み | 未導入時は `flash-dk` が明示エラーで停止 |
 | 実機（nRF52840 DK / Dongle） | フラッシュ・検証 | `flash-*` / `verify` で必要 |
 
-主な変数（`make build-firmware BOARD=... NCS_VERSION=...` で上書き可）:
+## 設定を変えたいとき
 
-| 変数 | 既定値 | 用途 |
+ビルドや書き込みの挙動は、以下の Make 変数で変えられる。既定値のままでも動作するが、別のボードを対象にしたい、NCS のバージョンを変えたいといった場合は、コマンドラインで変数を渡して上書きする。
+
+```sh
+make build-firmware BOARD=... NCS_VERSION=...
+```
+
+| 変数 | 既定値 | 説明 |
 | --- | --- | --- |
-| `NCS_VERSION` | `v2.6.1` | nRF Connect SDK のバージョン固定 |
-| `BOARD` | `nrf52840dk_nrf52840` | ビルド対象ボード |
-| `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグイン配置先 |
-| `SERIAL_PORT` | 自動検出 | 書き込み対象ポート（複数検出時はエラー） |
+| `NCS_VERSION` | `v2.6.1` | 使用する nRF Connect SDK のバージョン。 |
+| `BOARD` | `nrf52840dk_nrf52840` | ビルド対象のボード。 |
+| `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグインの配置先。 |
+| `SERIAL_PORT` | 自動検出 | 書き込み対象のシリアルポート。複数見つかった場合は、この変数で対象を指定する必要がある。 |
 
 ## サードパーティのツールとライセンス
 
