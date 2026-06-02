@@ -112,6 +112,14 @@ install-tools: check-os ## ツール導入（nrfutil/NCS/west/Wireshark）
 		nrfutil install toolchain-manager; \
 		nrfutil install device; \
 	fi
+	# --- nrfutil サブコマンド: nrf5sdk-tools（pkg generate / dfu usb-serial を提供）---
+	# 新 unified nrfutil 本体には pkg / dfu が無いため、ドングルの DFU 書き込みに必須（→ DL-5）。
+	@if nrfutil nrf5sdk-tools --help >/dev/null 2>&1; then \
+		echo "    [skip] nrfutil nrf5sdk-tools は導入済み"; \
+	else \
+		echo "    [install] nrfutil コマンド (nrf5sdk-tools: pkg/dfu 提供)"; \
+		nrfutil install nrf5sdk-tools; \
+	fi
 	# --- nRF Connect SDK Toolchain（NCS_VERSION で固定）---
 	@if nrfutil toolchain-manager list 2>/dev/null | grep -q "$(NCS_VERSION)"; then \
 		echo "    [ok] NCS Toolchain $(NCS_VERSION)"; \
@@ -212,7 +220,12 @@ flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 
 # ============================================================
 # flash-sniffer-dongle : USB ドングルへ Sniffer FW を書き込む
-#   Open Bootloader 経由の DFU を用いる
+#   Open Bootloader 経由の DFU を用いる。手順は 2 段:
+#     1) hex を署名付き DFU パッケージ(zip)へ変換（pkg generate）
+#     2) zip をブートローダへシリアル転送（dfu usb-serial）
+#   いずれも新 unified nrfutil の `nrf5sdk-tools` コマンドが提供する。
+#   旧 pc-nrfutil の `nrfutil pkg` / `nrfutil dfu` は新 nrfutil 本体に無い（→ DL-5）。
+#   ドングルは RESET ボタンで Open Bootloader(LED 赤点滅)にし /dev/tty.usbmodem* で接続する。
 #   同一ファームウェアの再書き込みは結果を変えない（実質冪等）
 # ============================================================
 flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込み（要ドングル）
@@ -228,7 +241,7 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 		n="$$(printf '%s\n' $$found | grep -c . || true)"; \
 		if [ "$$n" -eq 0 ]; then \
 			echo "ERROR(flash-sniffer-dongle): ドングルのシリアルポートが検出できません。" >&2; \
-			echo "  Open Bootloader を有効にして接続するか、SERIAL_PORT= を明示してください。" >&2; \
+			echo "  RESET ボタンで Open Bootloader(LED 赤点滅)にして接続するか、SERIAL_PORT= を明示してください。" >&2; \
 			exit 1; \
 		elif [ "$$n" -gt 1 ]; then \
 			echo "ERROR(flash-sniffer-dongle): シリアルポートが複数検出されました。SERIAL_PORT= を明示してください:" >&2; \
@@ -238,9 +251,12 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 		port="$$found"; \
 	fi; \
 	echo "    対象ポート: $$port / hex: $$hex"; \
-	nrfutil pkg generate --hw-version 52 --sd-req 0x00 \
-		--application "$$hex" --application-version 1 "$(BUILD_DIR)/sniffer_dfu.zip"; \
-	nrfutil dfu usb-serial -pkg "$(BUILD_DIR)/sniffer_dfu.zip" -p "$$port"
+	mkdir -p "$(BUILD_DIR)"; \
+	zip="$(BUILD_DIR)/sniffer_dfu.zip"; \
+	rm -f "$$zip"; \
+	nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x00 \
+		--application "$$hex" --application-version 1 "$$zip"; \
+	nrfutil nrf5sdk-tools dfu usb-serial -pkg "$$zip" -p "$$port"
 	@echo "==> flash-sniffer-dongle: 完了"
 
 # ============================================================

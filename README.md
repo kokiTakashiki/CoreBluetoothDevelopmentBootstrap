@@ -19,6 +19,8 @@ make verify               # 広告 / Sniffer インタフェースの検査
 make clean                # ビルド成果物を削除
 ```
 
+> `flash-sniffer-dongle` は nRF52840 Dongle の Open Bootloader 経由で DFU 書き込みする。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（Open Bootloader）**にしておくこと。`/dev/tty.usbmodem*` として列挙され、複数検出時は `SERIAL_PORT=` で明示する。書き込みは新 unified nrfutil の `nrf5sdk-tools` コマンド（`pkg generate` → `dfu usb-serial`）で行う（旧 `pip install nrfutil` 系の `nrfutil pkg` / `nrfutil dfu` は新 nrfutil 本体に無い。詳細は [DESIGN-001 DL-5](docs/DESIGN-001.md)）。
+
 ## `make setup` が導入するもの
 
 `make setup` は依存ターゲット（`install-tools` / `install-sniffer`）を通じて以下を導入する。各項目は導入前に存在検査され、導入済みならスキップされる（冪等）。
@@ -28,6 +30,7 @@ make clean                # ビルド成果物を削除
 | **nrfutil**（本体） | Nordic 公式 arm64 バイナリ（`files.nordicsemi.com`） | `$(brew --prefix)/bin/nrfutil` | NCS ツールチェイン管理・デバイス操作の統合 CLI | 必須 |
 | nrfutil **toolchain-manager** コマンド | `nrfutil install toolchain-manager` | nrfutil 管理下 | NCS ツールチェインの導入 / `launch` 実行 | 必須 |
 | nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | 接続デバイスの操作 | 必須 |
+| nrfutil **nrf5sdk-tools** コマンド | `nrfutil install nrf5sdk-tools` | nrfutil 管理下 | `pkg generate` / `dfu usb-serial`（ドングルの DFU 書き込み）を提供 | 必須 |
 | **NCS Toolchain**（`NCS_VERSION`） | `nrfutil toolchain-manager install` | `/opt/nordic/ncs/toolchains/…` | Zephyr/NCS のコンパイラ・ビルド依存一式（数 GB） | 必須 |
 | **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
 | **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
