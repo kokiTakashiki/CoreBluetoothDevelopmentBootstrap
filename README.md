@@ -25,7 +25,7 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 ## 使い方
 
 ```sh
-make                      # 既定ターゲット = help（ターゲット一覧を表示・副作用なし）
+make                      # ターゲット一覧を表示する（help が動く。副作用なし）
 make setup                # ソフトウェア環境構築（実機不要）: 前提確認 → 導入 → ビルド
 make deploy               # 実機へファームウェアを書き込む（要 DK＋ドングル接続。検証は make verify）
 make check-os             # 実行環境の前提確認（arm64 / Homebrew）
