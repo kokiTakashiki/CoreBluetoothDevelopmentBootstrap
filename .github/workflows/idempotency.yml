@@ -25,12 +25,12 @@ jobs:
       - name: 全ターゲットが dry-run でパースできること
         run: |
           set -euo pipefail
-          targets="help setup check-os install-tools install-sniffer build-firmware flash-dk flash-sniffer-dongle verify clean"
+          targets="help setup check-os install-nrfutil install-tools install-sniffer build-firmware flash-dk flash-sniffer-dongle verify clean"
           for t in $targets; do
             echo "--- make -n $t ---"
             make -n "$t" >/dev/null
           done
-          echo "OK: 全 10 ターゲットがパース成功"
+          echo "OK: 全 11 ターゲットがパース成功"
 
       - name: 素の make（既定ゴール）が help を表示し副作用を持たないこと
         run: |
@@ -110,3 +110,33 @@ jobs:
 
       - name: setup の依存グラフが dry-run で解決されること
         run: make -n setup >/dev/null
+
+  # ----------------------------------------------------------
+  # smoke test: install-tools の最も壊れやすい工程（nrfutil 本体導入）を
+  # 実機実行して検証する。dry-run では検出できない「導入コマンドが実際に
+  # 動くか」を確認する（過去に brew cask 破損を見逃した穴を埋める → DL-6）。
+  # NCS Toolchain 本体（数 GB）は重いため除外。public リポジトリのため
+  # macos-14 標準ランナーは無料。
+  # ----------------------------------------------------------
+  install-smoke:
+    name: install-nrfutil smoke (Apple Silicon)
+    runs-on: macos-14   # arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: make install-nrfutil を実機実行
+        run: make install-nrfutil
+
+      - name: nrfutil が実際に起動すること（壊れた symlink を検出）
+        run: |
+          set -euo pipefail
+          nrfutil --version
+          echo "OK: nrfutil 本体が実機で起動"
+
+      - name: install-nrfutil が冪等であること（2 回目はスキップ）
+        run: |
+          set -euo pipefail
+          out="$(make install-nrfutil)"
+          echo "$out"
+          echo "$out" | grep -qF '[skip] nrfutil は導入済み' || { echo "::error::2 回目がスキップされていません（冪等性違反）"; exit 1; }
+          echo "OK: install-nrfutil は冪等"

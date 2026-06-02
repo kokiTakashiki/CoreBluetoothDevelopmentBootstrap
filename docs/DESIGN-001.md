@@ -53,7 +53,8 @@ Make を採用する理由は三点ある。第一に、ターゲット間の依
 | `help` | — | **既定ゴール。** 各ターゲットの `## 注記` から一覧を自動生成して表示する。副作用を持たない。 | 読み取り専用。状態を変更しない。 |
 | `setup` | check-os, install-tools, build-firmware, verify | 前提確認から検証までを一括実行する（明示呼び出し）。各依存ターゲットが個別に冪等であるため setup の再実行も冪等。 | 依存先がすべて冪等であることに依存する。setup 自体は状態を持たない。 |
 | `check-os` | — | 実行環境が Apple Silicon Mac であることを確認する。`uname -m` が arm64 を返すこと、Homebrew が存在することを検査する。 | 読み取り専用の検査のみ。本質的に冪等。 |
-| `install-tools` | check-os | nrfutil / nrfutil サブコマンド(toolchain-manager / device / nrf5sdk-tools) / NCS Toolchain / Wireshark / Python 依存(west) を導入する。各ツールの導入有無を事前検査し、未導入のもののみ導入する。nrfutil は Nordic 公式 arm64 バイナリを直接取得する（→ DL-4）。`nrf5sdk-tools` は `flash-sniffer-dongle` の DFU 書き込みに必須（→ DL-5）。 | 導入前に存在検査。導入済みならスキップし重複導入が発生しない。nrfutil 本体の判定は `nrfutil --version`、各サブコマンドは `nrfutil <cmd> --help` の終了コードで行い、壊れた symlink を誤検出しない。 |
+| `install-nrfutil` | check-os | nrfutil 本体を Nordic 公式 arm64 バイナリの直接取得で導入する（最も壊れやすい工程を独立化し、CI が本工程だけを実機検証できるようにする → DL-4, DL-6）。 | 判定を `nrfutil --version` の終了コードで行い、壊れた symlink を誤検出しない。導入済みならスキップ。 |
+| `install-tools` | install-nrfutil | nrfutil サブコマンド(toolchain-manager / device / nrf5sdk-tools) / NCS Toolchain / Wireshark / Python 依存(west) を導入する。各ツールの導入有無を事前検査し、未導入のもののみ導入する。`nrf5sdk-tools` は `flash-sniffer-dongle` の DFU 書き込みに必須（→ DL-5）。 | 導入前に存在検査。導入済みならスキップし重複導入が発生しない。nrfutil 本体の判定は `nrfutil --version`、各サブコマンドは `nrfutil <cmd> --help` の終了コードで行い、壊れた symlink を誤検出しない。 |
 | `install-sniffer` | install-tools | nRF Sniffer の extcap プラグインを Wireshark のプラグインディレクトリへ配置する。 | 配置先のファイルハッシュを比較し、一致時は再配置しない。 |
 | `build-firmware` | install-tools | peripheral_uart サンプルをビルドする。 | `west build` のインクリメンタルビルド機構に委ねる。ソース未変更時は再コンパイルしない。 |
 | `flash-dk` | build-firmware | ビルド済みファームウェアを開発キットへ書き込む。J-Link を検出し、未接続時は明示エラーで停止する。 | 同一ファームウェアの再書き込みは結果状態を変えないため実質冪等。 |
@@ -84,7 +85,8 @@ graph TD
     setup --> install-tools
     setup --> build-firmware
     setup --> verify
-    install-tools --> check-os
+    install-nrfutil --> check-os
+    install-tools --> install-nrfutil
     install-sniffer --> install-tools
     build-firmware --> install-tools
     flash-dk --> build-firmware
@@ -125,6 +127,7 @@ graph TD
 | DL-3 | 既定ゴールを `setup` から `help` に変更する | 当初設計は「先頭ターゲット＝既定」の慣習に従い `setup` を既定にしていたが、素の `make` が導入・ビルド・**実機書き込み**まで一括実行するのは誤実行の事故リスクが高い。副作用のない `help` を既定にし、一括実行は明示 `make setup` に限定する。これはモダンな Makefile の慣習（self-documenting help）にも合致する。 | UX / 既定挙動（ユーザー承認済み） |
 | DL-4 | nrfutil を Homebrew cask ではなく Nordic 公式バイナリの直接取得で導入する | `brew install --cask nrfutil` は **deprecated かつ macOS Gatekeeper チェックに失敗**し、実体バイナリを伴わない壊れた symlink を残す（`brew` は「installed」と記録するが `nrfutil` は実行不可）。これにより `make setup` が `command not found` (Error 127) で失敗した。対策として、Nordic 公式 Artifactory (`files.nordicsemi.com`) の arm64 ネイティブバイナリを `curl -fL` で取得し、`chmod +x` + quarantine 除去のうえ `$(brew --prefix)/bin` へ配置する（sudo 不要）。導入判定は `command -v` ではなく `nrfutil --version` の終了コードで行い、壊れた symlink を「導入済み」と誤検出しない。 | 実装バグ修正（実機検証で発覚） |
 | DL-5 | ドングルの DFU を旧 `nrfutil pkg` / `nrfutil dfu` ではなく新 unified nrfutil の `nrf5sdk-tools` コマンドで行う | DL-4 で導入した新 unified nrfutil（arm64 公式バイナリ）には旧 pc-nrfutil の `pkg` / `dfu` サブコマンドが**存在しない**（別コマンド体系）。旧構文のままでは `flash-sniffer-dongle` が実機接続時に失敗する。Nordic は旧 pc-nrfutil（`pip install nrfutil`）を **deprecated** とし、当該機能は `nrfutil install nrf5sdk-tools` で導入する `nrfutil nrf5sdk-tools pkg generate` / `nrfutil nrf5sdk-tools dfu usb-serial` へ移行している。これは旧構文の 1:1 後継であり、既存ターゲットのシリアルポート自動検出・`SERIAL_PORT` 指定・複数検出エラーをそのまま温存できるため採用した。<br>**代替案:** Nordic 推奨の `nrfutil device program --firmware <zip> --traits nordicDfu`（DFU トレイトで自動探索、ポート指定不要）。`pkg generate` は同じく `nrf5sdk-tools` が必要。今回は tty ポート検出ロジックの維持と最小差分を優先し不採用。<br>**前提:** ドングルは RESET ボタンで Open Bootloader(LED 赤点滅)に入り `/dev/tty.usbmodem*` で列挙される。ブートローダは raw hex を受け付けないため、必ず署名付き DFU zip に変換してから転送する。<br>一次情報: nRF Sniffer programming ([docs.nordicsemi.com](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html)) / nrf5sdk-tools install・pkg・dfu ([install](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-nrf5sdk-tools/guides/installing.html) / [pkg](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-nrf5sdk-tools/guides/dfu_generating_packages.html) / [dfu](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-nrf5sdk-tools/guides/dfu_performing.html)) / device program over DFU ([docs](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-device/guides/programming_dongle_nsdfu.html)) / Zephyr nRF52840 Dongle board doc（`nrf5sdk-tools dfu usb-serial` を明記）([docs.zephyrproject.org](https://docs.zephyrproject.org/latest/boards/nordic/nrf52840dongle/doc/index.html)) / pc-nrfutil 廃止告知 ([github](https://github.com/NordicSemiconductor/pc-nrfutil)) | 実装バグ修正（API 移行） |
+| DL-6 | nrfutil 本体導入を独立ターゲット `install-nrfutil` に切り出し、CI で実機 smoke test する | DL-4 の bug は CI が **dry-run（`make -n`）と read-only ターゲットのみ**を検証し、`install-tools` を一度も実行していなかったため見逃された。最も壊れやすい工程（外部バイナリ取得）を独立ターゲットにし、macos-14 ランナーで `make install-nrfutil` を実行して `nrfutil --version` の起動と冪等性を検証する。NCS Toolchain 本体（数 GB）は重いため CI 対象外。public リポジトリのため標準 macOS ランナーは無料（課金ゼロ）。 | テスト戦略 / CI 検証範囲 |
 
 > **注:** DL-4 のダウンロード URL は調査時に実機で取得・`file` により arm64 ネイティブと確認済み（推測 URL ではない）。なお `nrfutil` バイナリの取得・実行はユーザー自身が `make` を実行する際にユーザー権限で行われる。`flash-sniffer-dongle` が用いる `nrfutil pkg` / `nrfutil dfu` は旧 pc-nrfutil 系の構文であり、新 unified nrfutil では別コマンド体系になる点は **DL-5 で対応済み**（`nrfutil nrf5sdk-tools` 系へ移行）。
 
