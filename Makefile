@@ -65,12 +65,15 @@ help: ## このヘルプ（ターゲット一覧）を表示
 		| awk 'BEGIN{FS=":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 # ============================================================
-# setup : 環境構築から検証までを一括実行（明示呼び出し）
+# setup : ソフトウェア環境構築（実機不要）
+# 前提確認→ツール導入→ファームウェアビルドまでをソフト工程のみで一括実行。
+# 実機への書き込み＆検証は deploy が担う（→ DL-9）。
 # 依存先がすべて冪等なため再実行も冪等。
 # ============================================================
-setup: check-os install-tools build-firmware verify ## 前提確認→導入→ビルド→検証を一括実行
+setup: check-os install-tools build-firmware ## ソフトウェア環境構築（実機不要）
 	@echo ""
-	@echo "==> setup 完了: 環境構築から検証まで一括実行しました。"
+	@echo "==> setup 完了: ソフトウェア環境構築（実機不要）を一括実行しました。"
+	@echo "    実機への書き込み＆検証は 'make deploy'（要 DK＋ドングル接続）。"
 
 # ============================================================
 # check-os : 実行環境の前提確認（読み取り専用 / 本質的に冪等）
@@ -277,6 +280,9 @@ flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 		echo "  nrfjprog は nRF Command Line Tools に含まれます（J-Link 経由の DK 書き込みに必要）。" >&2; \
 		echo "  対処: 下記からダウンロードしてインストールしてください:" >&2; \
 		echo "    https://www.nordicsemi.com/Products/Development-tools/nRF-Command-Line-Tools/Download" >&2; \
+		echo "  あわせて SEGGER J-Link ランタイム（JLinkARM DLL）も必要です（未導入だと" >&2; \
+		echo "  'JLinkARM DLL not found' で書き込みに失敗します）。下記から入手してください:" >&2; \
+		echo "    https://www.segger.com/downloads/jlink/" >&2; \
 		exit 1; \
 	fi
 	@ids="$$(nrfjprog --ids 2>/dev/null || true)"; \
@@ -338,11 +344,36 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 	@echo "==> flash-sniffer-dongle: 完了"
 
 # ============================================================
+# deploy : 実機へファームウェアを書き込む（要 DK＋ドングル接続）
+#   書き込み（副作用あり）のみを担う。検証は読み取り専用の `verify` に分離し、
+#   deploy には含めない（書き込みと検証で関心を分離する → DL-9）。
+#   非並列 make では prerequisite が左→右順に実行されるため、
+#   flash-dk → flash-sniffer-dongle の順に走る。
+#   検証まで一括で行いたい場合は `make deploy verify` と並べて指定する。
+# ============================================================
+deploy: flash-dk flash-sniffer-dongle ## 実機へファームウェアを書き込む（要 DK＋ドングル接続。検証は make verify）
+	@echo ""
+	@echo "==> deploy 完了: 実機への書き込みを実行しました。検証は 'make verify' で行ってください。"
+
+# ============================================================
 # verify : 構築結果を検査（読み取り専用 / 状態を変更しない）
 #   - DK が BLE Peripheral として広告しているか
 #   - Wireshark に Sniffer インタフェースが出現しているか
+#   フラッシュ済みを前提とする読み取り専用検査。書き込みは deploy が行う（→ DL-9）。
 # ============================================================
-verify: flash-dk flash-sniffer-dongle ## 広告 / Sniffer インタフェースの検査
+verify: ## 実機へ書き込み(確認の上)→広告/Sniffer インタフェースを検査
+	@# 書き込みは副作用のため [y/N] 確認を取り、y のときだけ deploy(書き込み)を実行する。
+	@# 確認をフラッシュ前に出す必要があるため make 依存ではなくレシピ内でサブ実行する。
+	@# 再帰に MAKE 変数ではなく literal `make` を使うのは、MAKE 変数を含む行が
+	@# `make -n`(dry-run) でも実行され、確認プロンプトが誤って出てしまうのを避けるため。
+	@printf "実機へファームウェアの書き込み（flash-dk / flash-sniffer-dongle）が行われます。問題ないですか？ [y/N]: "; \
+	read -r ans </dev/tty 2>/dev/null || ans=""; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		echo "==> 書き込みを実行します (make deploy)"; \
+		make deploy; \
+	else \
+		echo "==> 書き込みをスキップし、現在の状態を検査します（書き込みは make deploy で）"; \
+	fi
 	@echo "==> verify: 構築結果を検査します"
 	# 注: macOS 標準の make 3.81 は .ONESHELL 非対応のため、レシピ行をまたいだ
 	# 変数共有はできない。検査全体を 1 つのシェルチェーンに閉じて状態を持たせる。
@@ -378,5 +409,5 @@ clean: ## ビルド成果物を削除
 # ============================================================
 # .PHONY 指定（同名ファイルの有無に挙動を左右されないようにする）
 # ============================================================
-.PHONY: help setup check-os install-nrfutil install-tools install-sniffer fetch-ncs build-firmware \
+.PHONY: help setup deploy check-os install-nrfutil install-tools install-sniffer fetch-ncs build-firmware \
         flash-dk flash-sniffer-dongle verify clean

@@ -26,12 +26,12 @@ jobs:
         run: |
           set -euo pipefail
           # fetch-ncs は数 GB DL のため smoke 実行はせず dry-run パースのみで検証する。
-          targets="help setup check-os install-nrfutil install-tools install-sniffer fetch-ncs build-firmware flash-dk flash-sniffer-dongle verify clean"
+          targets="help setup deploy check-os install-nrfutil install-tools install-sniffer fetch-ncs build-firmware flash-dk flash-sniffer-dongle verify clean"
           for t in $targets; do
             echo "--- make -n $t ---"
             make -n "$t" >/dev/null
           done
-          echo "OK: 全 12 ターゲットがパース成功"
+          echo "OK: 全 13 ターゲットがパース成功"
 
       - name: 素の make（既定ゴール）が help を表示し副作用を持たないこと
         run: |
@@ -45,12 +45,25 @@ jobs:
       - name: 依存グラフが設計どおり解決されること
         run: |
           set -euo pipefail
-          # setup の dry-run に各ターゲットの開始ログが期待順で現れることを確認
+          # setup（ソフト工程のみ）の dry-run に各ターゲットの開始ログが現れることを確認
           out="$(make -n setup 2>&1)"
-          for needle in 'check-os: OK' 'install-tools: 導入状況' 'fetch-ncs: NCS' 'build-firmware:' 'flash-dk: 開発キット' 'install-sniffer:' 'flash-sniffer-dongle:' 'verify: 構築結果'; do
-            echo "$out" | grep -qF "$needle" || { echo "::error::依存解決に $needle が含まれていません"; exit 1; }
+          for needle in 'check-os: OK' 'install-tools: 導入状況' 'fetch-ncs: NCS' 'build-firmware:'; do
+            echo "$out" | grep -qF "$needle" || { echo "::error::setup の依存解決に $needle が含まれていません"; exit 1; }
           done
-          echo "OK: setup の依存グラフが設計どおり"
+          # setup にハードウェア工程（flash / verify）が含まれないことを確認
+          for needle in 'flash-dk: 開発キット' 'flash-sniffer-dongle:' 'verify: 構築結果'; do
+            echo "$out" | grep -qF "$needle" && { echo "::error::setup にハードウェア工程 $needle が混入しています"; exit 1; } || true
+          done
+          # deploy（実機書き込みのみ）の dry-run に flash が現れることを確認
+          dout="$(make -n deploy 2>&1)"
+          for needle in 'flash-dk: 開発キット' 'flash-sniffer-dongle:'; do
+            echo "$dout" | grep -qF "$needle" || { echo "::error::deploy の依存解決に $needle が含まれていません"; exit 1; }
+          done
+          # deploy に検証（verify）が混入していないこと（書き込みと検証は分離）
+          echo "$dout" | grep -qF 'verify: 構築結果' && { echo "::error::deploy に検証工程 verify が混入しています（verify は独立ターゲット）"; exit 1; } || true
+          # verify は独立した読み取り専用ターゲットとして解決できること
+          make -n verify 2>&1 | grep -qF 'verify: 構築結果' || { echo "::error::verify ターゲットが解決できません"; exit 1; }
+          echo "OK: setup / deploy / verify の依存グラフが設計どおり（書き込みと検証は分離）"
 
       - name: すべてのターゲットが .PHONY 指定されていること
         run: |
