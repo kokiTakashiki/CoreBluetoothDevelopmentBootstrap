@@ -25,12 +25,21 @@ jobs:
       - name: 全ターゲットが dry-run でパースできること
         run: |
           set -euo pipefail
-          targets="setup check-os install-tools install-sniffer build-firmware flash-dk flash-sniffer-dongle verify clean"
+          targets="help setup check-os install-tools install-sniffer build-firmware flash-dk flash-sniffer-dongle verify clean"
           for t in $targets; do
             echo "--- make -n $t ---"
             make -n "$t" >/dev/null
           done
-          echo "OK: 全 9 ターゲットがパース成功"
+          echo "OK: 全 10 ターゲットがパース成功"
+
+      - name: 素の make（既定ゴール）が help を表示し副作用を持たないこと
+        run: |
+          set -euo pipefail
+          out="$(make)"
+          echo "$out"
+          echo "$out" | grep -qF 'make setup' || { echo "::error::help に make setup の案内がありません"; exit 1; }
+          echo "$out" | grep -qF 'verify' || { echo "::error::help にターゲット一覧が出ていません"; exit 1; }
+          echo "OK: 既定ゴール=help（副作用なし）"
 
       - name: 依存グラフが設計どおり解決されること
         run: |

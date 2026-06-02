@@ -45,19 +45,31 @@ WIRESHARK_EXTCAP_DIR ?= $(HOME)/.local/lib/wireshark/extcap
 SERIAL_PORT ?=
 
 # ============================================================
-# 既定ターゲット（先頭に配置）
-# 前提確認から検証までを一括実行する。依存先がすべて冪等なため再実行も冪等。
+# 既定ゴール: help（先頭に配置）
+# 素の `make` は副作用を持たない help を表示する。導入・ビルド・実機書き込みを
+# 伴う setup は明示的に `make setup` と打たせ、誤実行の事故を防ぐ。
 # ============================================================
-.DEFAULT_GOAL := setup
+.DEFAULT_GOAL := help
 
-setup: check-os install-tools build-firmware verify
+help: ## このヘルプ（ターゲット一覧）を表示
+	@echo "使い方: make <target>  (例: make setup)"
+	@echo ""
+	@echo "ターゲット:"
+	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN{FS=":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
+
+# ============================================================
+# setup : 環境構築から検証までを一括実行（明示呼び出し）
+# 依存先がすべて冪等なため再実行も冪等。
+# ============================================================
+setup: check-os install-tools build-firmware verify ## 前提確認→導入→ビルド→検証を一括実行
 	@echo ""
 	@echo "==> setup 完了: 環境構築から検証まで一括実行しました。"
 
 # ============================================================
 # check-os : 実行環境の前提確認（読み取り専用 / 本質的に冪等）
 # ============================================================
-check-os:
+check-os: ## 実行環境の前提確認（arm64 / Homebrew）
 	@if [ "$$(uname -m)" != "arm64" ]; then \
 		echo "ERROR(check-os): Apple Silicon (arm64) が必要です。検出: $$(uname -m)" >&2; \
 		exit 1; \
@@ -72,7 +84,7 @@ check-os:
 # install-tools : 各ツールを導入（導入前に存在検査し、未導入のもののみ導入）
 #   nRF Connect SDK Toolchain / nrfutil / Wireshark / Python 依存(west)
 # ============================================================
-install-tools: check-os
+install-tools: check-os ## ツール導入（nrfutil/NCS/west/Wireshark）
 	@echo "==> install-tools: 導入状況を検査します"
 	# --- nrfutil（NCS Toolchain Manager の入口）---
 	@if command -v nrfutil >/dev/null 2>&1; then \
@@ -116,7 +128,7 @@ install-tools: check-os
 # install-sniffer : nRF Sniffer の extcap プラグインを配置
 #   配置元と配置先の shasum を比較し、一致時は再配置しない（冪等）
 # ============================================================
-install-sniffer: install-tools
+install-sniffer: install-tools ## nRF Sniffer の extcap プラグインを配置
 	@echo "==> install-sniffer: extcap プラグインを配置します"
 	@if [ ! -d "$(SNIFFER_EXTCAP_SRC)" ]; then \
 		echo "ERROR(install-sniffer): Sniffer extcap ソースが見つかりません: $(SNIFFER_EXTCAP_SRC)" >&2; \
@@ -146,7 +158,7 @@ install-sniffer: install-tools
 # build-firmware : peripheral_uart をビルド
 #   west build のインクリメンタル機構に委ねる（ソース未変更時は再コンパイルなし）
 # ============================================================
-build-firmware: install-tools
+build-firmware: install-tools ## peripheral_uart をビルド
 	@echo "==> build-firmware: $(BOARD) 向けに $(SAMPLE_DIR) をビルドします"
 	@if [ ! -d "$(SAMPLE_DIR)" ]; then \
 		echo "ERROR(build-firmware): サンプルが見つかりません: $(SAMPLE_DIR)" >&2; \
@@ -164,7 +176,7 @@ build-firmware: install-tools
 #   接続中の DK(J-Link) を検出し、未接続時は明示エラーで停止
 #   同一ファームウェアの再書き込みは結果状態を変えないため実質冪等
 # ============================================================
-flash-dk: build-firmware
+flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 	@echo "==> flash-dk: 開発キットへ書き込みます"
 	@if ! command -v nrfjprog >/dev/null 2>&1; then \
 		echo "ERROR(flash-dk): nrfjprog が見つかりません（nRF Command Line Tools を導入してください）" >&2; \
@@ -185,7 +197,7 @@ flash-dk: build-firmware
 #   Open Bootloader 経由の DFU を用いる
 #   同一ファームウェアの再書き込みは結果を変えない（実質冪等）
 # ============================================================
-flash-sniffer-dongle: install-sniffer
+flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込み（要ドングル）
 	@echo "==> flash-sniffer-dongle: ドングルへ Sniffer FW を書き込みます"
 	@hex="$$(ls $(SNIFFER_HEX) 2>/dev/null | head -n1 || true)"; \
 	if [ -z "$$hex" ]; then \
@@ -218,7 +230,7 @@ flash-sniffer-dongle: install-sniffer
 #   - DK が BLE Peripheral として広告しているか
 #   - Wireshark に Sniffer インタフェースが出現しているか
 # ============================================================
-verify: flash-dk flash-sniffer-dongle
+verify: flash-dk flash-sniffer-dongle ## 広告 / Sniffer インタフェースの検査
 	@echo "==> verify: 構築結果を検査します"
 	# 注: macOS 標準の make 3.81 は .ONESHELL 非対応のため、レシピ行をまたいだ
 	# 変数共有はできない。検査全体を 1 つのシェルチェーンに閉じて状態を持たせる。
@@ -246,7 +258,7 @@ verify: flash-dk flash-sniffer-dongle
 # clean : ビルド成果物を削除（対象不在でも rm -f により正常終了）
 #   導入済みツールやファームウェア書き込み状態には干渉しない
 # ============================================================
-clean:
+clean: ## ビルド成果物を削除
 	@echo "==> clean: ビルド成果物を削除します ($(BUILD_DIR))"
 	@rm -rf "$(BUILD_DIR)"
 	@echo "==> clean: 完了"
@@ -254,5 +266,5 @@ clean:
 # ============================================================
 # .PHONY 指定（同名ファイルの有無に挙動を左右されないようにする）
 # ============================================================
-.PHONY: setup check-os install-tools install-sniffer build-firmware \
+.PHONY: help setup check-os install-tools install-sniffer build-firmware \
         flash-dk flash-sniffer-dongle verify clean
