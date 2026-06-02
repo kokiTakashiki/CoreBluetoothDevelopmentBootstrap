@@ -257,9 +257,12 @@ build-firmware: install-tools fetch-ncs ## peripheral_uart をビルド
 		exit 1; \
 	fi
 	# nrfutil toolchain-manager の環境内で west build を実行する。
+	# `west build` は west ワークスペース拡張コマンドのため、ワークスペース
+	# ($(NCS_BASE)) の内側で実行する必要がある（外で実行すると
+	# 「unknown command "build"」になる）。よって cd してから呼ぶ。
 	# west は未変更ソースを再コンパイルしないため、再実行は冪等に近い。
 	@nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- \
-		west build -b $(BOARD) "$(SAMPLE_DIR)" --build-dir "$(BUILD_DIR)"
+		/bin/bash -c 'cd "$(NCS_BASE)" && west build -b $(BOARD) "$(SAMPLE_DIR)" --build-dir "$(BUILD_DIR)"'
 	@echo "==> build-firmware: 完了 ($(BUILD_DIR))"
 
 # ============================================================
