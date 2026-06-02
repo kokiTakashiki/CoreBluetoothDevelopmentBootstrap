@@ -70,7 +70,7 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
-> **初回は数 GB のダウンロードを伴う:** ファームウェアのビルドには、ツールチェインだけでなく NCS のソースツリー（`nrf/`・`zephyr/`・`samples/` など）も必要になる。ソースツリーは `fetch-ncs` が `$(HOME)/ncs/$(NCS_VERSION)` へ取得し、`make setup`（`build-firmware` 経由）が自動で呼び出す。合計で数 GB あるため初回は時間がかかる。取得済みなら再ダウンロードしない。`west` を使った取得手順の詳細は [docs/DESIGN-001.md](docs/DESIGN-001.md) を参照。
+> 初回の `make setup` は数 GB のダウンロードを伴うため、環境によっては時間がかかる。ファームウェアのビルドには、ツールチェインだけでなく NCS のソースツリー（`nrf/`・`zephyr/`・`samples/` など）も必要になる。ソースツリーは `fetch-ncs` が取得し、`make setup` が自動で呼び出す。取得済みなら再ダウンロードはしない。
 
 **`make setup` では導入されず、事前に用意が必要なもの**:
 
