@@ -48,7 +48,7 @@ Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築する
 > **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
 > - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
 > - ドングルは `/dev/tty.usbmodem*` として列挙される。複数検出された場合は `SERIAL_PORT=` で対象を明示する。
-> - 書き込みコマンドには、統合版（unified）nrfutil の `nrf5sdk-tools`（`pkg generate` → `dfu usb-serial`）を使う。旧来の `pip install nrfutil` 系にあった `nrfutil pkg` / `nrfutil dfu` は統合版 nrfutil 本体には存在しない（詳細は [DESIGN-001 DL-5](docs/DESIGN-001.md)）。
+> - 書き込みコマンドには、統合版（unified）nrfutil の `nrf5sdk-tools`（`pkg generate` → `dfu usb-serial`）を使う。旧来の `pip install nrfutil` 系にあった `nrfutil pkg` / `nrfutil dfu` は統合版 nrfutil 本体には存在しない。
 
 ## `make setup` が導入するもの
 
