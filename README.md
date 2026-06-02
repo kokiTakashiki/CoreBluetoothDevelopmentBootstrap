@@ -1,6 +1,6 @@
 # CoreBluetoothDevelopmentBootstrap
 
-Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築するための個人用リポジトリ。導入対象は nRF Connect SDK（NCS）・Wireshark・nRF Sniffer など。各ツールの導入・ビルド・実機書き込みまでを `make` で実行できる。
+Core Bluetooth（BLE）の検証環境を、Makefile 一つで自動構築するための個人用リポジトリ。導入対象は nRF Connect SDK（NCS）・Wireshark・nRF Sniffer など。各ツールの導入・ビルド・実機書き込みまでを `make` のコマンド（ターゲット）から実行できる。
 
 > 対象: Apple Silicon Mac。Xcode / iOS 実機署名の自動化は対象外。
 
