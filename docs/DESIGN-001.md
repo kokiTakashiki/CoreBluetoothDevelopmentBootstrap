@@ -53,7 +53,7 @@ Make を採用する理由は三点ある。第一に、ターゲット間の依
 | `help` | — | **既定ゴール。** 各ターゲットの `## 注記` から一覧を自動生成して表示する。副作用を持たない。 | 読み取り専用。状態を変更しない。 |
 | `setup` | check-os, install-tools, build-firmware, verify | 前提確認から検証までを一括実行する（明示呼び出し）。各依存ターゲットが個別に冪等であるため setup の再実行も冪等。 | 依存先がすべて冪等であることに依存する。setup 自体は状態を持たない。 |
 | `check-os` | — | 実行環境が Apple Silicon Mac であることを確認する。`uname -m` が arm64 を返すこと、Homebrew が存在することを検査する。 | 読み取り専用の検査のみ。本質的に冪等。 |
-| `install-tools` | check-os | nrfutil / NCS Toolchain / Wireshark / Python 依存(west) を導入する。各ツールの導入有無を事前検査し、未導入のもののみ導入する。 | 導入前に存在検査。導入済みならスキップし重複導入が発生しない。 |
+| `install-tools` | check-os | nrfutil / NCS Toolchain / Wireshark / Python 依存(west) を導入する。各ツールの導入有無を事前検査し、未導入のもののみ導入する。nrfutil は Nordic 公式 arm64 バイナリを直接取得する（→ DL-4）。 | 導入前に存在検査。導入済みならスキップし重複導入が発生しない。nrfutil の判定は `nrfutil --version` の終了コードで行い、壊れた symlink を誤検出しない。 |
 | `install-sniffer` | install-tools | nRF Sniffer の extcap プラグインを Wireshark のプラグインディレクトリへ配置する。 | 配置先のファイルハッシュを比較し、一致時は再配置しない。 |
 | `build-firmware` | install-tools | peripheral_uart サンプルをビルドする。 | `west build` のインクリメンタルビルド機構に委ねる。ソース未変更時は再コンパイルしない。 |
 | `flash-dk` | build-firmware | ビルド済みファームウェアを開発キットへ書き込む。J-Link を検出し、未接続時は明示エラーで停止する。 | 同一ファームウェアの再書き込みは結果状態を変えないため実質冪等。 |
@@ -123,5 +123,8 @@ graph TD
 | DL-1 | ファームウェア書き込みを「実質冪等」とみなす | 同一 FW の再書き込みは結果状態を変えない。書き込み回数に依存する物理的摩耗は無視できるという前提に基づく（意見）。 | 設計前提 |
 | DL-2 | 各レシピを単一シェルチェーンに集約する | macOS 標準の GNU Make 3.81 は `.ONESHELL` / `.SHELLFLAGS` を非対応（3.82+ で追加）。レシピ行をまたいだシェル変数共有は壊れるため、検査ロジックを 1 シェルに閉じる。`gmake` 3.82+ でも整合。 | 実装制約 |
 | DL-3 | 既定ゴールを `setup` から `help` に変更する | 当初設計は「先頭ターゲット＝既定」の慣習に従い `setup` を既定にしていたが、素の `make` が導入・ビルド・**実機書き込み**まで一括実行するのは誤実行の事故リスクが高い。副作用のない `help` を既定にし、一括実行は明示 `make setup` に限定する。これはモダンな Makefile の慣習（self-documenting help）にも合致する。 | UX / 既定挙動（ユーザー承認済み） |
+| DL-4 | nrfutil を Homebrew cask ではなく Nordic 公式バイナリの直接取得で導入する | `brew install --cask nrfutil` は **deprecated かつ macOS Gatekeeper チェックに失敗**し、実体バイナリを伴わない壊れた symlink を残す（`brew` は「installed」と記録するが `nrfutil` は実行不可）。これにより `make setup` が `command not found` (Error 127) で失敗した。対策として、Nordic 公式 Artifactory (`files.nordicsemi.com`) の arm64 ネイティブバイナリを `curl -fL` で取得し、`chmod +x` + quarantine 除去のうえ `$(brew --prefix)/bin` へ配置する（sudo 不要）。導入判定は `command -v` ではなく `nrfutil --version` の終了コードで行い、壊れた symlink を「導入済み」と誤検出しない。 | 実装バグ修正（実機検証で発覚） |
+
+> **注:** DL-4 のダウンロード URL は調査時に実機で取得・`file` により arm64 ネイティブと確認済み（推測 URL ではない）。なお `nrfutil` バイナリの取得・実行はユーザー自身が `make` を実行する際にユーザー権限で行われる。`flash-sniffer-dongle` が用いる `nrfutil pkg` / `nrfutil dfu` は旧 pc-nrfutil 系の構文であり、新 unified nrfutil では別コマンド体系になる点は別途要対応（ハードウェア接続時に検証）。
 
 > **注:** DL-3 は当初設計（`setup` を既定として冒頭配置）からの逸脱である。実装・レビュー段階でのユーザー判断により決定し、本設計書を実装に追従させた。
