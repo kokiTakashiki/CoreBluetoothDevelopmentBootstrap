@@ -3,6 +3,8 @@
 Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する個人用リポジトリ。各ツールの導入・ビルド・実機書き込みを `make` のコマンドから実行できる。導入対象は nRF Connect SDK（NCS）・Wireshark・nRF Sniffer。
 
 > 対象: Apple Silicon Mac。Xcode / iOS 実機署名の自動化は対象外。
+>
+> 必要な機材: nRF52840 DK（PCA10056）と nRF52840 MDBT50Q USB ドングルの 2 つ。いずれも必須。
 
 ## 用語
 
