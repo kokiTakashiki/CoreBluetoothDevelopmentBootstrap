@@ -13,7 +13,7 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 | NCS | nRF Connect SDK | Nordic 製の SDK。Zephyr RTOS をベースにした BLE 開発環境。 |
 | Zephyr | — | NCS の土台となる RTOS。 |
 | west | — | Zephyr 公式のコマンドラインツール。複数リポジトリの取得（`west init` / `west update`）とビルドをまとめて駆動する。Zephyr ではこれをメタツールと呼ぶ。 |
-| nrfutil | unified nrfutil | Nordic 製の統合 CLI。現行の単一実行ファイル版を指す。`nrfutil install <名前>` で機能（`toolchain-manager`・`device`・`ble-sniffer` など）を後から追加する。 |
+| nrfutil | unified nrfutil | Nordic 製の統合 CLI。現行の単一実行ファイル版を指す。`nrfutil install` で機能（`toolchain-manager`・`device`・`ble-sniffer` など）を後から追加する。 |
 | ツールチェイン | toolchain | コンパイラやビルド依存の一式。NCS の「ツールチェイン」と「ソースツリー」は別物で、両方が揃って初めてビルドできる。 |
 | DK | Development Kit（開発キット） | nRF52840 DK。デバッグ機能付きの開発ボード。 |
 | Dongle（ドングル） | — | nRF52840 Dongle。USB スティック型のボード。本リポジトリでは Sniffer 用ファームウェアの書き込み先として使う。 |
