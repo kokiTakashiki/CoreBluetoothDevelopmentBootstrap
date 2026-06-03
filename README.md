@@ -61,9 +61,13 @@ Core Bluetooth（BLE）の検証環境を自動構築するMakefileを提供す�
 
 ### ドングルへの書き込み（`flash-sniffer-dongle`）
 
-書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。
+書き込みは Open Bootloader 経由の DFU で行う。
 
-**事前準備:** ドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておく。
+**確認プロンプト:** 実行すると **Open Bootloader への準備を促す確認**（`[y/N]`）が入る。ドングルを Open Bootloader にしてから `y` と答える。`y` 以外（無回答含む）を選ぶと書き込みをスキップして正常終了する（冪等。既に書き込み済みなら何もしない。`make verify` で `y` を選んだ deploy 経由でも同様）。
+
+**事前準備（Open Bootloader への入り方）:** ボードで異なる。**LED がフェード明滅／赤点滅**すれば起動中。
+- Nordic 純正（PCA10059）: 横向きの **RESET ボタンを押す**。
+- RAYTAC など筐体入り（MDBT50Q 系）: **ボタンを押しながら USB に挿す**。
 
 **書き込むファームウェア:** `nrfutil ble-sniffer` が同梱する署名付き DFU パッケージ（`sniffer_nrf52840dongle_nrf52840_*.zip`）を用いる。`make install-sniffer` で導入され、`$(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware` に配置される。
 
