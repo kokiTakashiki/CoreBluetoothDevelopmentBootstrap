@@ -13,6 +13,7 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 | NCS | nRF Connect SDK | Nordic 製の SDK。Zephyr RTOS をベースにした BLE 開発環境。 |
 | Zephyr | — | NCS の土台となる RTOS。 |
 | west | — | Zephyr 公式のコマンドラインツール。複数リポジトリの取得（`west init` / `west update`）とビルドをまとめて駆動する。Zephyr ではこれをメタツールと呼ぶ。 |
+| nrfutil | unified nrfutil | Nordic 製の統合 CLI。現行の単一実行ファイル版を指す。`nrfutil install <名前>` で機能（`toolchain-manager`・`device`・`ble-sniffer` など）を後から追加する。 |
 | ツールチェイン | toolchain | コンパイラやビルド依存の一式。NCS の「ツールチェイン」と「ソースツリー」は別物で、両方が揃って初めてビルドできる。 |
 | DK | Development Kit（開発キット） | nRF52840 DK。デバッグ機能付きの開発ボード。 |
 | Dongle（ドングル） | — | nRF52840 Dongle。USB スティック型のボード。本リポジトリでは Sniffer 用ファームウェアの書き込み先として使う。 |
@@ -61,7 +62,6 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 > - 書き込むファームウェアは `nrfutil ble-sniffer` が同梱する署名付き DFU パッケージ（`sniffer_nrf52840dongle_nrf52840_*.zip`）を用いる。`make install-sniffer` で導入され、`$(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware` に配置される。手動の Sniffer 配布物 zip は不要。
 > - 書き込みは `nrfutil device program --firmware <zip> --traits nordicDfu` で行う。`.zip`（SdfuZip）と `nordicDfu` トレイトから Nordic secure DFU が自動選択されるため、tty ポート指定は不要。DFU モードのドングルが自動検出される。
 > - DFU モードのデバイスが複数検出された場合は `SERIAL_PORT=<シリアル番号>` で対象を明示する（`nrfutil device list --traits nordicDfu` で確認できる）。`SERIAL_PORT` は従来の tty パスではなく**シリアル番号**を指す点に注意。
-> - ここでいう nrfutil は、現行の単一実行ファイル版を指す。機能は `nrfutil install <名前>` で後から追加する。Nordic はこれを "unified nrfutil" と呼ぶ。
 
 ## 導入されるツール
 
