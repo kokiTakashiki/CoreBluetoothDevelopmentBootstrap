@@ -28,9 +28,7 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 | 前提条件 | 用途 | 補足 |
 | --- | --- | --- |
 | Homebrew | 各 cask / nrfutil 配置先の基盤 | `check-os` が存在を検査し、無ければ停止する。 |
-| 実機（nRF52840 DK / Dongle） | 書き込みと検証 | `flash-*` / `verify` で必要。手動準備はこの実機接続のみ。 |
-
-> nRF Sniffer の extcap プラグインと dongle 用ファームウェアは、いずれも `nrfutil ble-sniffer` コマンドが供給する（`make setup` 系で自動導入）。従来必要だった nRF Sniffer 配布物 zip の手動ダウンロード・展開は不要になった。
+| 実機（nRF52840 DK / Dongle） | 書き込みと検証 | `flash-*` / `verify` で必要。 |
 
 ## 使い方
 
