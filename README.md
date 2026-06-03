@@ -73,15 +73,15 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 | --- | --- | --- | --- | --- |
 | **nrfutil**（本体） | Nordic 公式 arm64 バイナリ（`files.nordicsemi.com`） | `$(brew --prefix)/bin/nrfutil` | NCS ツールチェイン管理・デバイス操作の統合 CLI | 必須 |
 | nrfutil **toolchain-manager** コマンド | `nrfutil install toolchain-manager` | nrfutil 管理下 | NCS ツールチェインの導入 / `launch` 実行 | 必須 |
-| nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | 接続デバイスの操作（`device program` でドングルへ DFU 書き込み） | 必須 |
-| nrfutil **ble-sniffer** コマンド | `nrfutil install ble-sniffer`（`install-sniffer` が実行） | nrfutil 管理下（FW は `~/.nrfutil/share/nrfutil-ble-sniffer/firmware`） | nRF Sniffer の extcap shim 配置（`bootstrap`）と dongle 用 Sniffer FW の供給 | 必須 |
+| nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | `device program` によってドングルへ DFU 書き込み操作を行う | 必須 |
+| nrfutil **ble-sniffer** コマンド | `nrfutil install ble-sniffer` | nrfutil 管理下（FW は `~/.nrfutil/share/nrfutil-ble-sniffer/firmware`） | nRF Sniffer の extcap shim 配置（`bootstrap`）と dongle 用 Sniffer FW の供給 | 必須 |
 | **NCS Toolchain**（`NCS_VERSION`） | `nrfutil toolchain-manager install` | `/opt/nordic/ncs/toolchains/…` | Zephyr/NCS のコンパイラ・ビルド依存一式（数 GB） | 必須 |
 | **NCS ソースツリー**（`NCS_VERSION`） | `west init -m sdk-nrf --mr` + `west update`（`fetch-ncs` が実行） | `$(HOME)/ncs/$(NCS_VERSION)`（`nrf/`・`zephyr/`・`samples/` 等） | サンプル `peripheral_uart` と Zephyr 本体のソース。ビルドに必須。 | 必須 |
 | **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
 | **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nrfjprog ＋ SEGGER J-Link** | Homebrew cask `nordic-nrf-command-line-tools`（`segger-jlink` を依存導入） | `/usr/local/bin` ほか | DK の J-Link 書き込み（`flash-dk`）。`.pkg` のため導入時に sudo を求める。 | 必須 |
-| **nRF Sniffer extcap プラグイン** | `nrfutil ble-sniffer bootstrap`（`install-sniffer` が実行） | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
+| **nRF Sniffer extcap プラグイン** | `nrfutil ble-sniffer bootstrap` | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
 > 初回の `make setup` は数 GB のダウンロードを伴うため、環境によっては時間がかかる。ファームウェアのビルドには、ツールチェインだけでなく NCS のソースツリー（`nrf/`・`zephyr/`・`samples/` など）も必要になる。ソースツリーは `fetch-ncs` が取得し、`make setup` が自動で呼び出す。取得済みなら再ダウンロードはしない。
 
