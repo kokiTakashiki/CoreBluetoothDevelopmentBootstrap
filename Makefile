@@ -295,8 +295,12 @@ flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 		exit 1; \
 	fi; \
 	echo "    検出した J-Link: $$ids"
+	@# build-firmware 同様、west flash も west ワークスペース拡張コマンドのため
+	@# ワークスペース($(NCS_BASE))内で実行する必要がある。cd せずに呼ぶと
+	@# 「unknown command "flash"」で失敗する。--build-dir は絶対パスだが、拡張
+	@# コマンド解決のためにワークスペース内である必要があるため cd してから呼ぶ。
 	@nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- \
-		west flash --build-dir "$(BUILD_DIR)"
+		/bin/bash -c 'cd "$(NCS_BASE)" && west flash --build-dir "$(BUILD_DIR)"'
 	@echo "==> flash-dk: 完了"
 
 # ============================================================
@@ -307,6 +311,10 @@ flash-dk: build-firmware ## 開発キットへ書き込み（要 DK 接続）
 #   ポート(tty)指定や hex→zip 変換は不要になった（旧 nrf5sdk-tools pkg/dfu 手順を撤去）。
 #   一次情報: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html
 #
+#   冪等性/UX: 書き込みは Open Bootloader が前提のため、まず準備を促して [y/N]
+#   確認を取る。y 以外（tty 無しの無回答含む）はスキップして正常終了する（既に
+#   書き込み済みなら何もしないのが期待動作。deploy 経由の再実行でも詰まらない）。
+#   ブートローダの入り方は純正(横向き RESET)と RAYTAC 等(ボタン押下＋挿入)で異なる。
 #   デバイス選択:
 #     - 既定は `--traits nordicDfu` で DFU モードのドングルを自動選択する。
 #     - SERIAL_PORT を指定した場合は `--serial-number` として明示選択する（複数台時）。
@@ -323,6 +331,12 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 		echo "  別パスに置いた場合は 'make flash-sniffer-dongle SNIFFER_DONGLE_FW=/path/to/sniffer_*.zip' で指定。" >&2; \
 		echo "  一次情報: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html" >&2; \
 		exit 1; \
+	fi; \
+	printf "ドングルを Open Bootloader にしてください（純正: 横向き RESET ボタン / RAYTAC 等: ボタンを押しながら USB に挿す。LED フェード/赤点滅）。完了しましたか？ [y/N]: "; \
+	read -r ans </dev/tty 2>/dev/null || ans=""; \
+	if [ "$$ans" != "y" ] && [ "$$ans" != "Y" ]; then \
+		echo "==> flash-sniffer-dongle: スキップしました（Open Bootloader 未準備）。書き込むなら 'make flash-sniffer-dongle' を実行してください。"; \
+		exit 0; \
 	fi; \
 	sel="$(SERIAL_PORT)"; \
 	if [ -z "$$sel" ]; then \
@@ -343,8 +357,8 @@ flash-sniffer-dongle: install-sniffer ## ドングルへ Sniffer FW を書き込
 	else \
 		echo "    対象: serial-number=$$sel / fw: $$fw"; \
 		nrfutil device program --firmware "$$fw" --serial-number "$$sel"; \
-	fi
-	@echo "==> flash-sniffer-dongle: 完了"
+	fi; \
+	echo "==> flash-sniffer-dongle: 完了"
 
 # ============================================================
 # deploy : 実機へファームウェアを書き込む（要 DK＋ドングル接続）
@@ -380,19 +394,37 @@ verify: ## 実機へ書き込み(確認の上)→広告/Sniffer インタフェ�
 	@echo "==> verify: 構築結果を検査します"
 	# 注: macOS 標準の make 3.81 は .ONESHELL 非対応のため、レシピ行をまたいだ
 	# 変数共有はできない。検査全体を 1 つのシェルチェーンに閉じて状態を持たせる。
+	# 注: macOS には timeout が無い（GNU coreutils の gtimeout）。tshark は
+	#   -a duration / -c で自分で停止するため timeout は必須でない。あれば
+	#   ハング保険として使い、無ければ tshark の自動停止に委ねる。
+	# 注: deploy 直後はドングルが DFU 後に USB を再列挙する途中のことがある。
+	#   Sniffer インタフェース出現を最大 20 秒ポーリングしてから判定する。
 	@ok=1; \
-	if command -v tshark >/dev/null 2>&1 && tshark -D 2>/dev/null | grep -qi "sniffer"; then \
-		echo "    [ok] Wireshark に Sniffer インタフェースが出現"; \
-		iface="$$(tshark -D 2>/dev/null | grep -i sniffer | head -n1 | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"; \
-		if timeout 8 tshark -i "$$iface" -a duration:6 -c 1 >/dev/null 2>&1; then \
-			echo "    [ok] DK の BLE 広告（または BLE トラフィック）を検出"; \
+	if ! command -v tshark >/dev/null 2>&1; then \
+		echo "    [NG] tshark が見つかりません（Wireshark を導入してください）" >&2; \
+		ok=0; \
+	else \
+		sniffer_ok=0; i=0; \
+		while [ $$i -lt 20 ]; do \
+			if tshark -D 2>/dev/null | grep -qi "sniffer"; then sniffer_ok=1; break; fi; \
+			i=$$((i+1)); sleep 1; \
+		done; \
+		if [ "$$sniffer_ok" -eq 1 ]; then \
+			echo "    [ok] Wireshark に Sniffer インタフェースが出現"; \
+			iface="$$(tshark -D 2>/dev/null | grep -i sniffer | head -n1 | sed -E 's/^[0-9]+\. ([^ ]+).*/\1/')"; \
+			to=""; \
+			if command -v gtimeout >/dev/null 2>&1; then to="gtimeout 20"; \
+			elif command -v timeout >/dev/null 2>&1; then to="timeout 20"; fi; \
+			if $$to tshark -i "$$iface" -a duration:15 -c 1 >/dev/null 2>&1; then \
+				echo "    [ok] DK の BLE 広告（または BLE トラフィック）を検出"; \
+			else \
+				echo "    [warn] 広告を検出できませんでした。DK が起動・広告中か、flash-dk を確認してください。" >&2; \
+				ok=0; \
+			fi; \
 		else \
-			echo "    [warn] 広告を検出できませんでした。DK が起動・広告中か、flash-dk を確認してください。" >&2; \
+			echo "    [NG] Sniffer インタフェースが見つかりません（install-sniffer / flash-sniffer-dongle を再実行）" >&2; \
 			ok=0; \
 		fi; \
-	else \
-		echo "    [NG] Sniffer インタフェースが見つかりません（install-sniffer / flash-sniffer-dongle を再実行）" >&2; \
-		ok=0; \
 	fi; \
 	if [ "$$ok" -ne 1 ]; then \
 		echo "==> verify: 一部の検査に失敗しました。" >&2; \
