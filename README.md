@@ -72,7 +72,7 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 | **nrfutil**（本体） | Nordic 公式 arm64 バイナリ（`files.nordicsemi.com`） | `$(brew --prefix)/bin/nrfutil` | NCS ツールチェイン管理・デバイス操作の統合 CLI | 必須 |
 | nrfutil **toolchain-manager** コマンド | `nrfutil install toolchain-manager` | nrfutil 管理下 | NCS ツールチェインの導入 / `launch` 実行 | 必須 |
 | nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | `device program` によってドングルへ DFU 書き込み操作を行う | 必須 |
-| nrfutil **ble-sniffer** コマンド | `nrfutil install ble-sniffer` | nrfutil 管理下（FW は `~/.nrfutil/share/nrfutil-ble-sniffer/firmware`） | nRF Sniffer の extcap shim 配置（`bootstrap`）と dongle 用 Sniffer FW の供給 | 必須 |
+| nrfutil **ble-sniffer** コマンド | `nrfutil install ble-sniffer` | nrfutil 管理下（FW は `~/.nrfutil/share/nrfutil-ble-sniffer/firmware`） | Wireshark から nRF Sniffer を使うための extcap プラグインを配置（`bootstrap`）し、ドングルに書き込む Sniffer 用ファームウェアを供給する | 必須 |
 | **NCS Toolchain**（`NCS_VERSION`） | `nrfutil toolchain-manager install` | `/opt/nordic/ncs/toolchains/…` | Zephyr/NCS のコンパイラ・ビルド依存一式（数 GB） | 必須 |
 | **NCS ソースツリー**（`NCS_VERSION`） | `west init -m sdk-nrf --mr` + `west update`（`fetch-ncs` が実行） | `$(HOME)/ncs/$(NCS_VERSION)`（`nrf/`・`zephyr/`・`samples/` 等） | サンプル `peripheral_uart` と Zephyr 本体のソース。ビルドに必須。 | 必須 |
 | **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
