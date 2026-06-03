@@ -3,6 +3,8 @@
 Core Bluetooth（BLE）の検証環境を自動構築するMakefileを提供する。各ツールの導入・ビルド・実機書き込みを `make` のコマンドから実行できる。導入対象は nRF Connect SDK（NCS）・Wireshark・nRF Sniffer。
 
 > 対象: Apple Silicon Mac。Xcode / iOS 実機署名の自動化は対象外。
+>
+> 必要な機材: nRF52840 DK（PCA10056）と nRF52840 MDBT50Q USB ドングルの 2 つ。いずれも必須。
 
 ## 用語
 
@@ -13,6 +15,7 @@ Core Bluetooth（BLE）の検証環境を自動構築するMakefileを提供す�
 | NCS | nRF Connect SDK | Nordic 製の SDK。Zephyr RTOS をベースにした BLE 開発環境。 |
 | Zephyr | — | NCS の土台となる RTOS。 |
 | west | — | Zephyr 公式のコマンドラインツール。複数リポジトリの取得（`west init` / `west update`）とビルドをまとめて駆動する。Zephyr ではこれをメタツールと呼ぶ。 |
+| nrfutil | unified nrfutil | Nordic 製の統合 CLI。現行の単一実行ファイル版を指す。`nrfutil install` で機能（`toolchain-manager`・`device`・`ble-sniffer` など）を後から追加する。 |
 | ツールチェイン | toolchain | コンパイラやビルド依存の一式。NCS の「ツールチェイン」と「ソースツリー」は別物で、両方が揃って初めてビルドできる。 |
 | DK | Development Kit（開発キット） | nRF52840 DK。デバッグ機能付きの開発ボード。 |
 | Dongle（ドングル） | — | nRF52840 Dongle。USB スティック型のボード。本リポジトリでは Sniffer 用ファームウェアの書き込み先として使う。 |
@@ -28,7 +31,6 @@ Core Bluetooth（BLE）の検証環境を自動構築するMakefileを提供す�
 | 前提条件 | 用途 | 補足 |
 | --- | --- | --- |
 | Homebrew | 各 cask / nrfutil 配置先の基盤 | `check-os` が存在を検査し、無ければ停止する。 |
-| nRF Sniffer 配布物 | extcap プラグイン・Sniffer hex の供給元 | Nordic の[配布ページ](https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE/Download)からダウンロードし、`SNIFFER_PKG_DIR` に展開しておく。 |
 | 実機（nRF52840 DK / Dongle） | 書き込みと検証 | `flash-*` / `verify` で必要。 |
 
 ## 使い方
@@ -57,28 +59,33 @@ Core Bluetooth（BLE）の検証環境を自動構築するMakefileを提供す�
 | `make verify` | 書き込みと検査を行う。実行前に `[y/N]` で確認し、`y` なら書き込んでから検査、`N`（既定）なら書き込まず検査のみ。 |
 | `make clean` | ビルド成果物を削除する。 |
 
-> **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
-> - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
-> - ドングルは `/dev/tty.usbmodem*` として列挙される。複数検出された場合は `SERIAL_PORT=` で対象を明示する。
-> - 書き込みは nrfutil の `nrf5sdk-tools` コマンドで行う。`pkg generate` でパッケージを作り、続けて `dfu usb-serial` で書き込む。ここでいう nrfutil は、現行の単一実行ファイル版を指す。機能は `nrfutil install <名前>` で後から追加する。Nordic はこれを "unified nrfutil" と呼ぶ。
+### ドングルへの書き込み（`flash-sniffer-dongle`）
+
+書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。
+
+**事前準備:** ドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておく。
+
+**書き込むファームウェア:** `nrfutil ble-sniffer` が同梱する署名付き DFU パッケージ（`sniffer_nrf52840dongle_nrf52840_*.zip`）を用いる。`make install-sniffer` で導入され、`$(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware` に配置される。
+
+**書き込みコマンド:** `nrfutil device program --firmware <zip> --traits nordicDfu`。DFU モードのデバイスが複数検出された場合は `SERIAL_PORT=<シリアル番号>` で対象を明示する（`nrfutil device list --traits nordicDfu` で確認できる）。`SERIAL_PORT` は従来の tty パスではなく**シリアル番号**を指す点に注意。
 
 ## 導入されるツール
 
-本リポジトリが使うツールの一覧。基本的に `make setup` が公式ソースから自動で導入し、すでに導入済みのものはスキップする。nRF Sniffer の extcap プラグインだけは `make setup` では導入されない。`flash-sniffer-dongle` の実行時に配置される。
+本リポジトリが使うツールの一覧。基本的に `make setup` が公式ソースから自動で導入し、すでに導入済みのものはスキップする。nRF Sniffer の extcap プラグインは `install-sniffer` の実行時に配置される。`make setup` では導入されないので注意する。
 
 | ツール | 入手元 | 配置先 | 用途 | 区分 |
 | --- | --- | --- | --- | --- |
 | **nrfutil**（本体） | Nordic 公式 arm64 バイナリ（`files.nordicsemi.com`） | `$(brew --prefix)/bin/nrfutil` | NCS ツールチェイン管理・デバイス操作の統合 CLI | 必須 |
 | nrfutil **toolchain-manager** コマンド | `nrfutil install toolchain-manager` | nrfutil 管理下 | NCS ツールチェインの導入 / `launch` 実行 | 必須 |
-| nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | 接続デバイスの操作 | 必須 |
-| nrfutil **nrf5sdk-tools** コマンド | `nrfutil install nrf5sdk-tools` | nrfutil 管理下 | ドングルへの DFU 書き込み用の `pkg generate` / `dfu usb-serial` を提供 | 必須 |
+| nrfutil **device** コマンド | `nrfutil install device` | nrfutil 管理下 | `device program` によってドングルへ DFU 書き込み操作を行う | 必須 |
+| nrfutil **ble-sniffer** コマンド | `nrfutil install ble-sniffer` | nrfutil 管理下（FW は `~/.nrfutil/share/nrfutil-ble-sniffer/firmware`） | Wireshark から nRF Sniffer を使うための extcap プラグインを配置（`bootstrap`）し、ドングルに書き込む Sniffer 用ファームウェアを供給する | 必須 |
 | **NCS Toolchain**（`NCS_VERSION`） | `nrfutil toolchain-manager install` | `/opt/nordic/ncs/toolchains/…` | Zephyr/NCS のコンパイラ・ビルド依存一式（数 GB） | 必須 |
 | **NCS ソースツリー**（`NCS_VERSION`） | `west init -m sdk-nrf --mr` + `west update`（`fetch-ncs` が実行） | `$(HOME)/ncs/$(NCS_VERSION)`（`nrf/`・`zephyr/`・`samples/` 等） | サンプル `peripheral_uart` と Zephyr 本体のソース。ビルドに必須。 | 必須 |
 | **west** | `python3 -m pip install --user west` | Python ユーザー site の `bin` | Zephyr メタツール（ビルド駆動） | 必須 |
 | **Wireshark** | Homebrew cask | `/Applications/Wireshark.app` | パケット解析 | 必須 |
 | **nRF Connect for Desktop** | Homebrew cask | `/Applications` | GUI ツール群（Programmer 等） | 任意 |
 | **nrfjprog ＋ SEGGER J-Link** | Homebrew cask `nordic-nrf-command-line-tools`（`segger-jlink` を依存導入） | `/usr/local/bin` ほか | DK の J-Link 書き込み（`flash-dk`）。`.pkg` のため導入時に sudo を求める。 | 必須 |
-| **nRF Sniffer extcap プラグイン** | ローカルの nRF Sniffer 配布物（`SNIFFER_PKG_DIR`）からコピー | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
+| **nRF Sniffer extcap プラグイン** | `nrfutil ble-sniffer bootstrap` | `WIRESHARK_EXTCAP_DIR`（既定 `~/.local/lib/wireshark/extcap`） | Wireshark で BLE をキャプチャ | 必須 |
 
 > 初回の `make setup` は数 GB のダウンロードを伴うため、環境によっては時間がかかる。ファームウェアのビルドには、ツールチェインだけでなく NCS のソースツリー（`nrf/`・`zephyr/`・`samples/` など）も必要になる。ソースツリーは `fetch-ncs` が取得し、`make setup` が自動で呼び出す。取得済みなら再ダウンロードはしない。
 
@@ -94,8 +101,9 @@ make build-firmware BOARD=... NCS_VERSION=...
 | --- | --- | --- |
 | `NCS_VERSION` | `v2.6.1` | 使用する nRF Connect SDK のバージョン。 |
 | `BOARD` | `nrf52840dk_nrf52840` | ビルド対象のボード。 |
-| `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグインの配置先。 |
-| `SERIAL_PORT` | 自動検出 | 書き込み対象のシリアルポート。複数見つかった場合は、この変数で対象を指定する必要がある。 |
+| `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグインの配置先。`nrfutil ble-sniffer bootstrap --extcap-dir` に渡される。 |
+| `SNIFFER_DONGLE_FW` | `~/.nrfutil/share/nrfutil-ble-sniffer/firmware/sniffer_nrf52840dongle_nrf52840_*.zip` | ドングルへ書き込む Sniffer ファームウェア（DFU zip）。`nrfutil ble-sniffer` が同梱する。通常は変更不要。 |
+| `SERIAL_PORT` | 自動検出 | 書き込み対象ドングルの**シリアル番号**（`nrfutil device program --serial-number`）。未指定時は `nordicDfu` トレイトで DFU モードのドングルを自動検出する。複数見つかった場合に指定する。従来の tty パスではない点に注意。 |
 
 ## ライセンス
 
