@@ -59,11 +59,15 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 | `make verify` | 書き込みと検査を行う。実行前に `[y/N]` で確認し、`y` なら書き込んでから検査、`N`（既定）なら書き込まず検査のみ。 |
 | `make clean` | ビルド成果物を削除する。 |
 
-> **`flash-sniffer-dongle`（ドングルへの書き込み）について:**
-> - 書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。実行前にドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておくこと。
-> - 書き込むファームウェアは `nrfutil ble-sniffer` が同梱する署名付き DFU パッケージ（`sniffer_nrf52840dongle_nrf52840_*.zip`）を用いる。`make install-sniffer` で導入され、`$(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware` に配置される。
-> - 書き込みは `nrfutil device program --firmware <zip> --traits nordicDfu` で行う。
-> - DFU モードのデバイスが複数検出された場合は `SERIAL_PORT=<シリアル番号>` で対象を明示する（`nrfutil device list --traits nordicDfu` で確認できる）。`SERIAL_PORT` は従来の tty パスではなく**シリアル番号**を指す点に注意。
+### ドングルへの書き込み（`flash-sniffer-dongle`）
+
+書き込みは nRF52840 Dongle の Open Bootloader 経由の DFU で行う。
+
+**事前準備:** ドングルを挿し、**RESET ボタンを押して LED が赤く点滅する状態（＝ Open Bootloader 起動中）**にしておく。
+
+**書き込むファームウェア:** `nrfutil ble-sniffer` が同梱する署名付き DFU パッケージ（`sniffer_nrf52840dongle_nrf52840_*.zip`）を用いる。`make install-sniffer` で導入され、`$(HOME)/.nrfutil/share/nrfutil-ble-sniffer/firmware` に配置される。
+
+**書き込みコマンド:** `nrfutil device program --firmware <zip> --traits nordicDfu`。DFU モードのデバイスが複数検出された場合は `SERIAL_PORT=<シリアル番号>` で対象を明示する（`nrfutil device list --traits nordicDfu` で確認できる）。`SERIAL_PORT` は従来の tty パスではなく**シリアル番号**を指す点に注意。
 
 ## 導入されるツール
 
