@@ -1,14 +1,10 @@
-# west / Zephyr build artifacts
+# Build artifacts（blinky ビルドを submodule 委譲で親 build/ へ出す）
 /build/
-build/
+
+# Central scaffold（生成物は追跡しない。reference/ と README のみ追跡）
+/central/*
+!/central/README.md
+!/central/reference/
 
 # macOS
 .DS_Store
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-
-# Sniffer DFU 生成物
-*.zip
