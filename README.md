@@ -65,7 +65,7 @@ Core Bluetooth（BLE）の検証環境を Makefile 一つで自動構築する�
 
 ## 導入されるツール
 
-本リポジトリが使うツールの一覧。基本的に `make setup` が公式ソースから自動で導入し、すでに導入済みのものはスキップする。nRF Sniffer の extcap プラグインだけは `make setup` では導入されない。`install-sniffer`（`flash-sniffer-dongle` の依存）の実行時に `nrfutil ble-sniffer bootstrap` で配置される。
+本リポジトリが使うツールの一覧。基本的に `make setup` が公式ソースから自動で導入し、すでに導入済みのものはスキップする。nRF Sniffer の extcap プラグインは `install-sniffer` の実行時に配置される。`make setup` では導入されないので注意する。
 
 | ツール | 入手元 | 配置先 | 用途 | 区分 |
 | --- | --- | --- | --- | --- |
