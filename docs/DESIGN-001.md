@@ -35,8 +35,6 @@ iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が�
 - **関心の分離** — nRF ハードの面倒（NCS ツールチェーン・ファームウェアビルド・書き込み・Sniffer）は submodule に閉じ、独立して再利用・進化できる。
 - **置き換え可能性** — 将来 Peripheral を別ハード（別ボード／市販の BLE デバイス）に差し替えても、このリポジトリ側の 3 フェーズ構造は不変。
 
-二分割に至った経緯は[意思決定ログ D-1](#意思決定ログ)を参照。
-
 ## 2. 全体アーキテクチャ
 
 ### 2.1 リポジトリ二分割
@@ -82,7 +80,7 @@ flowchart TB
 
 ### 2.3 submodule を選ぶ理由
 
-取り込む方式は submodule とする。代替（subtree / 単純コピー / パッケージ依存）と比較した結論は[意思決定ログ D-2](#意思決定ログ)に記す。要点は、**submodule のコミットをこのリポジトリが明示的にピン留めでき、submodule が独立リポジトリとして単体でも使える**こと。
+取り込む方式は submodule とする。要点は、**submodule のコミットをこのリポジトリが明示的にピン留めでき、submodule が独立リポジトリとして単体でも使える**こと。
 
 ## 3. リポジトリ構成
 
@@ -148,7 +146,7 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
     BUILD_DIR='$(CURDIR)/build/blinky'
 ```
 
-これにより blinky 用ビルドが peripheral_uart 用ビルド（`build/`）と別ディレクトリに分離され、両者が共存できる。詳細・代替案は[意思決定ログ D-5](#意思決定ログ)。
+これにより blinky 用ビルドが peripheral_uart 用ビルド（`build/`）と別ディレクトリに分離され、両者が共存できる。
 
 **完了条件:** blinky で LED 点滅を確認し、peripheral_uart 書き込み後に nRF Connect for Mobile で文字列の往復が取れること。これをもって DUT を確定する。
 
@@ -202,11 +200,11 @@ sequenceDiagram
 
 **完了条件:** 自作 Central が DK と上記フローを完走し、同じ通信が Wireshark 上でも観測できること。これをもって検証主体を確定し、Core Bluetooth 検証環境の構築を完了とする。
 
-**iOSAppTemplate の扱い（設計判断）:** iOSAppTemplate は Genesis ベースのテンプレートで、雛形（XcodeGen `project.yml` を含むアプリ一式）を生成する。これを**一度だけ**使って雛形を作り、その source of truth（`project.yml` と Swift ソース）をこのリポジトリに固定する。**`make` 実行時に iOSAppTemplate へは依存しない**（テンプレが破壊的に変わっても影響を受けない）。`make generate-central` は同梱の `project.yml` を `xcodegen generate` するだけ。追跡するのは `project.yml` と Swift ソースで、生成物（`.xcodeproj`・`Info.plist`）は `.gitignore` する。詳細は[意思決定ログ D-7](#意思決定ログ)。
+**iOSAppTemplate の扱い（設計判断）:** iOSAppTemplate は Genesis ベースのテンプレートで、雛形（XcodeGen `project.yml` を含むアプリ一式）を生成する。これを**一度だけ**使って雛形を作り、その source of truth（`project.yml` と Swift ソース）をこのリポジトリに固定する。**`make` 実行時に iOSAppTemplate へは依存しない**（テンプレが破壊的に変わっても影響を受けない）。`make generate-central` は同梱の `project.yml` を `xcodegen generate` するだけ。追跡するのは `project.yml` と Swift ソースで、生成物（`.xcodeproj`・`Info.plist`）は `.gitignore` する。
 
 ## 5. Make ターゲット設計
 
-この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。この使い勝手こそが最重要の設計対象である（[意思決定ログ D-10](#意思決定ログ)）。
+この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。この使い勝手こそが最重要の設計対象である。
 
 **準備は `make setup` の一回だけである。** `setup` は検証に必要なものを全部まとめて用意する。具体的には、ツール（nrfutil・Wireshark 等）の導入、nRF Connect SDK の取得、開発キットへ書き込む 2 種類のファームウェア（blinky と peripheral_uart）のビルド、Sniffer を Wireshark から使うためのプラグイン配置、そして Xcode の Central プロジェクトの生成までを含む。この準備には実機もマウス操作も要らず、パソコン上で完結する。何度実行しても同じ状態に行き着く（冪等）ため、途中で失敗しても、設定を変えても、`make setup` を打ち直せば済む。
 
