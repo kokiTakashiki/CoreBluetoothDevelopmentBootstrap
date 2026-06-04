@@ -2,7 +2,7 @@
 
 Core Bluetooth（BLE）の検証環境を自動構築する Makefile を提供する。iOS Central 開発者が、対向の Peripheral・通信を覗く Sniffer・自分が書く Central 実装の三者を、`make` のコマンドから 3 フェーズで立ち上げられる。
 
-nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実機書き込み・nRF Sniffer）は submodule [`nrf52840-ble-debug-bootstrap`](https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap) へ委譲し、本リポジトリはそれを束ねるオーケストレータに徹する。
+nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実機書き込み・nRF Sniffer）は submodule [`nrf52840-ble-debug-bootstrap`](https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap) に任せ、このリポジトリはそれと Central をまとめて呼び出し、検証環境一式を用意する。
 
 > 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（Make の冪等性が保証できないため自動化対象外）。
 >
@@ -11,8 +11,8 @@ nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実
 ## 構成
 
 ```
-CoreBluetoothDevelopmentBootstrap/   ← 本リポジトリ（オーケストレータ）
-├── Makefile                         3 フェーズ・オーケストレータ
+CoreBluetoothDevelopmentBootstrap/   ← このリポジトリ
+├── Makefile                         make の入口（submodule と central をまとめて呼ぶ）
 ├── docs/DESIGN-001.md               構成設計書
 ├── central/                         Phase 3: Genesis 生成オプション＋注入する BLE ソース（生成物は gitignore）
 └── external/
@@ -21,8 +21,8 @@ CoreBluetoothDevelopmentBootstrap/   ← 本リポジトリ（オーケストレ
 
 | レイヤ | 提供物 | 実体 |
 | --- | --- | --- |
-| 親（本リポジトリ） | 3 フェーズの束ね、Central の足場 | `Makefile` / `central/` |
-| 子（submodule） | nRF52840 の Peripheral（DUT）＋ Sniffer（観測） | `external/nrf52840-ble-debug-bootstrap`（独立リポジトリ） |
+| このリポジトリ | make の入口・3 フェーズのまとめ・Central の足場 | `Makefile` / `central/` |
+| submodule | nRF52840 の Peripheral（DUT）＋ Sniffer（観測） | `external/nrf52840-ble-debug-bootstrap`（独立リポジトリ） |
 
 ## 必要な機材
 
@@ -75,10 +75,10 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | その他 | `make` | ターゲット一覧（help）。 |
 | その他 | `make init` | submodule を取得・更新（`make setup` が内部で実行）。 |
 | その他 | `make generate-central` | Central アプリを iOSAppTemplate(Genesis) で生成し xcodegen で .xcodeproj 化（`make setup`／`open-central` が内部で実行）。 |
-| その他 | `make verify` | 機械検査（子へ委譲 / 読み取り専用＋[y/N]書込確認）。 |
+| その他 | `make verify` | 機械検査（submodule へ委譲 / 読み取り専用＋[y/N]書込確認）。 |
 | その他 | `make clean` | ビルド成果物を削除（central プロジェクトは残す）。 |
 
-子（submodule）の詳細なターゲット（`flash-dk` / `install-sniffer` / `flash-sniffer-dongle` 等）は [`external/nrf52840-ble-debug-bootstrap`](https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap) の README を参照。
+submodule の詳細なターゲット（`flash-dk` / `install-sniffer` / `flash-sniffer-dongle` 等）は [`external/nrf52840-ble-debug-bootstrap`](https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap) の README を参照。
 
 ## ライセンス
 

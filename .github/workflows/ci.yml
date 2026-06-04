@@ -1,6 +1,6 @@
 name: parent-makefile
 
-# 親 Makefile（3 フェーズ・オーケストレータ）の機械ゲート。
+# このリポジトリの Makefile の機械ゲート。
 # 実機・GUI・数 GB DL は対象外（DESIGN-001 6 章）。
 # - 既定ゴールが副作用のない help であること
 # - フェーズ/委譲ターゲットが定義され .PHONY であること

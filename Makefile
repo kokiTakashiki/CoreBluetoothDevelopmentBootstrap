@@ -22,16 +22,16 @@ SHELL := /bin/bash
 # --- submodule（nRF52840 製 BLE デバッグ環境） ---------------
 SUBMODULE_DIR ?= external/nrf52840-ble-debug-bootstrap
 
-# --- blinky を子の build/flash へ変数上書きで流す（DESIGN-001 D-5） ---
-# 子 Makefile の SAMPLE_DIR / BUILD_DIR を上書きするだけで、子を無改変のまま
-# blinky（Zephyr 標準サンプル）をビルド・書き込みできる。成果物は submodule の
-# 外（親の build/）へ出し submodule を汚さない。peripheral_uart は子の既定で扱う。
+# --- blinky を submodule の build/flash へ変数上書きで流す（DESIGN-001 D-5） ---
+# submodule の Makefile の SAMPLE_DIR / BUILD_DIR を上書きするだけで、submodule を
+# 無改変のまま blinky（Zephyr 標準サンプル）をビルド・書き込みできる。成果物は
+# submodule の外（このリポジトリの build/）へ出し汚さない。peripheral_uart は submodule の既定で扱う。
 NCS_VERSION      ?= v2.6.1
 NCS_BASE         ?= $(HOME)/ncs/$(NCS_VERSION)
 BLINKY_SAMPLE    ?= $(NCS_BASE)/zephyr/samples/basic/blinky
 BLINKY_BUILD_DIR ?= $(CURDIR)/build/blinky
 
-# --- Central の Xcode プロジェクト（iOSAppTemplate を展開し履歴を切離。D-7） ---
+# --- Central の Xcode プロジェクト（iOSAppTemplate(Genesis) で生成。D-7） ---
 CENTRAL_DIR  ?= central
 APP_NAME     ?= BLECentralSample
 TEMPLATE_URL ?= https://github.com/koki-mobile-studio/iOSAppTemplate.git
@@ -53,13 +53,13 @@ help: ## このヘルプ（ターゲット一覧）を表示
 # ============================================================
 # 構築
 #   setup が 3 つの検証環境を全部組み上げる:
-#     - ツール導入＋NCS 取得＋peripheral_uart ビルド（子の setup）
+#     - ツール導入＋NCS 取得＋peripheral_uart ビルド（submodule の setup）
 #     - blinky ビルド
-#     - Sniffer extcap 配置（子の install-sniffer）
+#     - Sniffer extcap 配置（submodule の install-sniffer）
 #     - Xcode Central プロジェクト生成（generate-central）
 #   実機書き込みと GUI 起動は一切含めない（それは確認コマンド側）。
 # ============================================================
-init: ## submodule（子）を取得・更新
+init: ## submodule を取得・更新
 	@git submodule update --init --recursive
 	@echo "==> init: submodule 準備完了 ($(SUBMODULE_DIR))"
 
@@ -108,7 +108,7 @@ generate-central: init ## Central アプリを iOSAppTemplate(Genesis) で生成
 # ============================================================
 # 確認（setup 後、実機をつないで試す）
 #   各コマンドは「焼く／開く」という実機・GUI の動作だけを担う。ビルドは
-#   setup 済みのため速い（未 setup でも子の依存が必要分だけ補う）。
+#   setup 済みのため速い（未 setup でも submodule の依存が必要分だけ補う）。
 # ============================================================
 flash-blinky: init ## ① 開発キット: blinky を焼いて LED 点滅を見る
 	@echo "==> flash-blinky: blinky を書き込みます（DK の LED1 点滅を確認）"
@@ -141,7 +141,7 @@ open-central: generate-central ## ③ Central: Xcode プロジェクトを開い
 # ============================================================
 # 検査 / 後始末
 # ============================================================
-verify: init ## 機械検査（子へ委譲 / 読み取り専用＋[y/N]書込確認）
+verify: init ## 機械検査（submodule へ委譲 / 読み取り専用＋[y/N]書込確認）
 	$(MAKE) -C $(SUBMODULE_DIR) verify
 
 clean: ## ビルド成果物・生成物を削除（追跡対象の central ソースは残す）

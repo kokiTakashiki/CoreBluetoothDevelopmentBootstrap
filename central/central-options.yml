@@ -4,7 +4,7 @@
 # 非対話で central/<appName>/ にアプリ一式を生成する（生成物は .gitignore）。
 # 値を変えれば、生成されるアプリ名・Bundle ID・対応言語などを調整できる。
 #
-# 注意: appName を変えたら、親 Makefile の APP_NAME も合わせること
+# 注意: appName を変えたら、このリポジトリの Makefile の APP_NAME も合わせること
 #       （例: make generate-central APP_NAME=MyCentral）。
 appName: BLECentralSample
 bundlePrefix: com.example.ble
