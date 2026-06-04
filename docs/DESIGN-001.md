@@ -191,9 +191,10 @@ CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
 │       ├── LICENSE
 │       └── .github/workflows/idempotency.yml
 ├── central/                              # Phase 3 用（Central のソースを同梱）
+│   ├── GUIDE.md                          #   Core Bluetooth 実装ガイド（教材）
 │   └── BLECentralSample/                 #   project.yml ＋ Swift ソース（commit）
 │       ├── project.yml                   #     XcodeGen 定義（.xcodeproj の source of truth）
-│       └── BLECentralSample/*.swift      #     AppDelegate/SceneDelegate/VC/BLECentral
+│       └── BLECentralSample/*.swift      #     AppDelegate/SceneDelegate/BLECentralViewController
 │           # .xcodeproj・Info.plist は xcodegen 生成・.gitignore
 └── .github/
     └── workflows/                        # このリポジトリの機械ゲート（parse-lint など）
@@ -268,7 +269,7 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 | 手順 | Makefile の自動化 | 人間の確認 |
 | --- | --- | --- |
 | Xcode 新規プロジェクトを作成。雛形は [iOSAppTemplate](https://github.com/koki-mobile-studio/iOSAppTemplate) で一度生成し固定済み | ○ `generate-central`：同梱の `project.yml` を `xcodegen generate` で `.xcodeproj` 化 | — |
-| `CBCentralManager` / `CBCentralManagerDelegate` / `CBPeripheralDelegate` の最小実装 | ○ アプリ内蔵で `BLECentral.swift`／`BLECentralViewController.swift` を同梱。署名・実行は開発者 | コードを読み・実機で動かす |
+| `CBCentralManager` / `CBCentralManagerDelegate` / `CBPeripheralDelegate` の最小実装 | ○ `BLECentralViewController.swift` に手順順のガイド付きで同梱。読み方は `central/GUIDE.md`。署名・実行は開発者 | コードを読み・実機で動かす |
 | `scan → connect → discoverServices → discoverCharacteristics → readValue/setNotifyValue` の一連動作 | × 実機ビルド・署名・実行のため対象外 | アプリ上で一連が流れること |
 | 同一通信を Wireshark で観測し、Swift 実装が出すバイト列を可視化 | × キャプチャの読解のため対象外 | Sniffer 上で Swift 由来のバイト列が見えること |
 
@@ -332,7 +333,7 @@ sequenceDiagram
 | D-4 | 検証フローを DUT 確定 → 観測手段確定 → 検証主体確定の 3 フェーズに構造化する | BLE 検証は「対向・観測・主体」の三者が揃って初めて成立する。各フェーズに明確な完了条件を与えることで、どこまで確定したかを段階的に保証できる。 |
 | D-5 | Phase 1 の blinky は submodule の新ターゲットではなく、既存 `flash-dk` の `SAMPLE_DIR` / `BUILD_DIR` 変数上書きで実現する | submodule の Makefile は両変数を既に変数化しており、`zephyr/samples/basic/blinky` の blinky を別 `BUILD_DIR` でビルド・書き込みできる。submodule を無改変に保て、peripheral_uart 用ビルドと共存できる。**代替案**として submodule に `flash-blinky` 専用ターゲットを追加する案は submodule の改変を伴い、変数上書きで足りる以上は不採用。 |
 | D-6 | Phase 3 は「`.xcodeproj` 生成まで」を Makefile の責務とし、Xcode ビルド・署名・実行は人間に委ねる | Apple の署名フローは GUI と手動承認を要し、Make の冪等性を保証できない。これは submodule の Makefile が Xcode を対象外としてきた方針の踏襲である。`generate-central` で `xcodegen` による `.xcodeproj` 化までを機械化し、以降の実機署名・ビルド・実行は開発者が担う。 |
-| D-7 | `project.yml` ＋ Swift ソースの Central アプリをこのリポジトリに固定し、`.xcodeproj` だけを `xcodegen` で生成する。**`make` 実行時に iOSAppTemplate へは依存しない** | iOSAppTemplate は Genesis テンプレで、XcodeGen `project.yml` を含むアプリ一式の雛形を生成する。当初案は `make` 実行のたびに iOSAppTemplate を clone して Genesis 生成していたが、**テンプレは破壊的に変更され得るため、実行時依存は壊れやすい**とユーザーが指摘した。そこで iOSAppTemplate で一度だけ雛形を生成し、その source of truth である `project.yml`・`AppDelegate`/`SceneDelegate`/`BLECentralViewController`・`BLECentral.swift` をこのリポジトリに固定。以後 iOSAppTemplate を参照せず、`make generate-central` は同梱 `project.yml` を `xcodegen generate` するだけ。commit するのは `project.yml` と Swift ソース、生成物の `.xcodeproj`・`Info.plist` は `.gitignore`。種別: ユーザー指摘と依存削減による実装方針。 |
+| D-7 | `project.yml` ＋ Swift ソースの Central アプリをこのリポジトリに固定し、`.xcodeproj` だけを `xcodegen` で生成する。**`make` 実行時に iOSAppTemplate へは依存しない** | iOSAppTemplate は Genesis テンプレで、XcodeGen `project.yml` を含むアプリ一式の雛形を生成する。当初案は `make` 実行のたびに iOSAppTemplate を clone して Genesis 生成していたが、**テンプレは破壊的に変更され得るため、実行時依存は壊れやすい**とユーザーが指摘した。そこで iOSAppTemplate で一度だけ雛形を生成し、その source of truth である `project.yml`・`AppDelegate`/`SceneDelegate`/`BLECentralViewController` をこのリポジトリに固定。以後 iOSAppTemplate を参照せず、`make generate-central` は同梱 `project.yml` を `xcodegen generate` するだけ。commit するのは `project.yml` と Swift ソース、生成物の `.xcodeproj`・`Info.plist` は `.gitignore`。種別: ユーザー指摘と依存削減による実装方針。 |
 | D-8 | このリポジトリは submodule へ `$(MAKE) -C` で委譲し、submodule の冪等性と setup・deploy・verify の関心分離をそのまま継承する | submodule は冪等性と書き込み/検証分離を作り込み済み。このリポジトリはそれを再発明せず、まとめて呼び出すだけにとどめ、二重実装と挙動のずれを防ぐ。 |
 | D-9 | CI が回す dry-run パース・submodule 整合の機械検証と、LED・GUI・実機実行の人間確認を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
 | D-10 | `make` インターフェースを「**`make setup` 一回の準備 ＋ 独立した 4 コマンドのこの環境でできること**」の二段階にする | 最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が、ビルド・配置・生成の準備と、書き込み・GUI 起動による実機で動かす操作を 1 ターゲットに混在させ、`setup` も 3 環境のうち peripheral_uart の 1 つしか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: ユーザー指摘で承認済みの UX / インターフェース設計。 |

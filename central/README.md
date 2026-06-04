@@ -7,8 +7,8 @@ DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこ�
 | パス | 役割 | git 追跡 |
 | --- | --- | --- |
 | `BLECentralSample/project.yml` | XcodeGen のプロジェクト定義（`.xcodeproj` の source of truth）。 | ○ |
-| `BLECentralSample/BLECentralSample/BLECentral.swift` | NUS を相手取る `CBCentralManager` の最小実装。 | ○ |
-| `BLECentralSample/BLECentralSample/BLECentralViewController.swift` | BLECentral を起動し、イベントを画面に出す最小 VC。 | ○ |
+| `BLECentralSample/BLECentralSample/BLECentralViewController.swift` | Core Bluetooth の Central を手順順に並べたガイド付き教材。scan→connect→discover→notify/write を 1 枚に実装し、各手順をコメントで解説。受信バイト列を画面に出す。 | ○ |
+| `GUIDE.md` | 上記コードを読みながら Core Bluetooth の設計思想を学ぶプログラミングガイド。 | ○ |
 | `BLECentralSample/BLECentralSample/{AppDelegate,SceneDelegate}.swift` | UIKit のアプリ起動（雛形）。 | ○ |
 | `BLECentralSample/BLECentralSample.xcodeproj` | `xcodegen generate` の生成物。 | ×（`.gitignore`） |
 | `BLECentralSample/BLECentralSample/Info.plist` | XcodeGen が `project.yml` の `info:` から生成。 | ×（`.gitignore`） |
