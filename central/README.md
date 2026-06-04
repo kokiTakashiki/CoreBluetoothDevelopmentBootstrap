@@ -24,7 +24,7 @@ make open-central   # xcodegen で生成し、Xcode で開く
 
 > アプリ名を変えるときは `BLECentralSample/project.yml` の `name`・ディレクトリ名と、Makefile の `APP_NAME` を合わせる。
 
-## 以降の実装（人手）
+## 以降の実装
 
 Apple の署名・ビルド・実行は Make の対象外（DESIGN-001 D-6）。Xcode で:
 
