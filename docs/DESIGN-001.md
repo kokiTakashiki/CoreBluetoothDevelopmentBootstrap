@@ -11,10 +11,10 @@
 ## 目次
 
 - [1. 背景と目的](#1-背景と目的)
-- [2. 全体アーキテクチャ](#2-全体アーキテクチャ)
-- [3. リポジトリ構成](#3-リポジトリ構成)
-- [4. 3 フェーズ設計](#4-3-フェーズ設計)
-- [5. Make ターゲット設計](#5-make-ターゲット設計)
+- [2. Make ターゲット設計](#2-make-ターゲット設計)
+- [3. 全体アーキテクチャ](#3-全体アーキテクチャ)
+- [4. リポジトリ構成](#4-リポジトリ構成)
+- [5. 3 フェーズ設計](#5-3-フェーズ設計)
 - [6. 機械検証と人間検証の境界](#6-機械検証と人間検証の境界)
 - [意思決定ログ](#意思決定ログ)
 - [付録](#付録)
@@ -60,18 +60,81 @@ flowchart LR
 
 <p align="center"><sub>表 1 — 二分割の狙い（名実の一致・関心の分離・置き換え可能性）。</sub></p>
 
-## 2. 全体アーキテクチャ
+## 2. Make ターゲット設計
 
-### 2.1 リポジトリ二分割
+この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。この使い勝手こそが最重要の設計対象である。
+
+**準備は `make setup` の一回だけである。** `setup` は検証に必要なものを全部まとめて用意する。具体的には、ツール（nrfutil・Wireshark 等）の導入、nRF Connect SDK の取得、開発キットへ書き込む 2 種類のファームウェア（blinky と peripheral_uart）のビルド、Sniffer を Wireshark から使うためのプラグイン配置、そして Xcode の Central プロジェクトの生成までを含む。この準備には実機もマウス操作も要らず、パソコン上で完結する。何度実行しても同じ状態に行き着く（冪等）ため、途中で失敗しても、設定を変えても、`make setup` を打ち直せば済む。
+
+**準備が終わったら、実機をつないで、この環境でできることを個別のコマンドで試す。** コマンドは次の 4 つである。
+
+- `make flash-blinky` — 開発キットに blinky を書き込み、基板の LED が点滅するのを見る。
+- `make flash-peripheral` — 開発キットに peripheral_uart を書き込み、iPhone から接続して文字列が往復するのを見る。
+- `make capture` — ドングルに Sniffer を書き込み、Wireshark で電波上のやり取りを覗く。
+- `make open-central` — Xcode プロジェクトを開き、自分で書いた Central アプリを動かす。
+
+**この 4 つに決まった実行順序はない。** どれから始めてもよく、同じものを何度繰り返してもよい。たとえば「peripheral_uart を書き込み直して、もう一度キャプチャを取り直す」「Central アプリを直して、また開いて試す」といったことを、好きな順で何度でもできる。ビルドは `setup` で済ませてあるため、これらのコマンドは「書き込む」「開く」だけを担い、すぐ動く。
+
+実装上は、このリポジトリが submodule へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲し、submodule の冪等性をそのまま受け継ぐ（D-8）。実機への書き込みと GUI 起動は `setup` には一切含めず、これらのコマンド側の役割とする。
+
+### 2.1 ターゲット一覧
+
+| 区分 | ターゲット | 委譲先 / 動作 | 責務 |
+| --- | --- | --- | --- |
+| — | `help` | — | 既定ゴール。`## 注記`から一覧を自動生成。副作用なし。 |
+| 準備 | `init` | `git submodule update --init` | submodule の取得・更新（`setup` が内部で呼ぶ）。 |
+| 準備 | `setup` | submodule の `setup` ＋ `build-firmware`(blinky) ＋ `install-sniffer` ＋ `generate-central` | **検証に必要なものを全部用意する。** 実機/GUI 不要・冪等。 |
+| 準備 | `generate-central` | 同梱 `project.yml` を `xcodegen generate` | Central の `.xcodeproj` を生成（`setup`/`open-central` が呼ぶ。iOSAppTemplate 非依存）。 |
+| できること① 開発キット | `flash-blinky` | submodule の `flash-dk`（blinky 上書き） | blinky を焼いて LED 点滅を見る。 |
+| できること① 開発キット | `flash-peripheral` | submodule の `flash-dk` | peripheral_uart を焼く（nRF Connect で往復）。 |
+| できること② アナライザ | `capture` | submodule の `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| できること③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
+| — | `verify` | submodule の `verify` | 機械検査（読み取り専用＋[y/N]書込確認）。 |
+| — | `clean` | submodule の `clean` ＋ このリポジトリの `build/` 削除 | ビルド成果物を削除（central プロジェクトは残す）。 |
+
+<p align="center"><sub>表 2 — make ターゲット一覧（区分・委譲先・責務）。</sub></p>
+
+### 2.2 準備と「この環境でできること」のグラフ
+
+`make setup` が 4 つの準備ステップへ扇状に展開し、各コマンドは独立に submodule へ委譲する。
+
+```mermaid
+graph TD
+    subgraph build["準備（make setup / 実機・GUI 不要・冪等）"]
+        setup["make setup"]
+        setup --> s1["submodule setup<br/>ツール導入＋NCS＋peripheral_uart ビルド"]
+        setup --> s2["submodule build-firmware<br/>blinky ビルド"]
+        setup --> s3["submodule install-sniffer<br/>extcap 配置"]
+        setup --> s4["generate-central<br/>project.yml を xcodegen で .xcodeproj 化"]
+    end
+
+    subgraph play["この環境でできること（実機をつないで個別に実行・順不同）"]
+        fb["make flash-blinky"] --> p1["submodule flash-dk（blinky）"]
+        fp["make flash-peripheral"] --> p2["submodule flash-dk"]
+        cap["make capture"] --> p3["submodule flash-sniffer-dongle → Wireshark 起動"]
+        oc["make open-central"] --> p4["open *.xcodeproj"]
+    end
+```
+
+<p align="center"><sub>図 2 — make setup が 4 つの準備ステップへ展開し、各コマンドは独立に submodule へ委譲する。</sub></p>
+
+### 2.3 冪等性と実行順序
+
+- `setup` の各ステップは状態検査つきで冪等（submodule のガード＋`generate-central` の存在検査）。再実行は同一状態へ収束する。
+- 各コマンド（この環境でできること）は**独立・再入可能**で、決まった順序を持たない。FW の再書き込みは結果状態を変えないため実質冪等。`open-central` は何度開いてもよい。`generate-central` は同梱 `project.yml` から `xcodegen` で `.xcodeproj` を何度でも再生成できる（冪等）。
+
+## 3. 全体アーキテクチャ
+
+### 3.1 リポジトリ二分割
 
 | リポジトリ | 役割 | 提供物 |
 | --- | --- | --- |
 | **`CoreBluetoothDevelopmentBootstrap`**（このリポジトリ） | Core Bluetooth 検証環境を `make` で用意する。3 フェーズをまとめ、Central 実装の足場まで用意する。 | Makefile、本設計書、Central のソース（project.yml＋Swift）、submodule の取り込み |
 | **`kokiTakashiki/nrf52840-ble-debug-bootstrap`**（submodule） | nRF52840 製の BLE デバッグ環境（Peripheral＋Sniffer）。NCS 導入・FW ビルド・実機書き込み・Sniffer を冪等に自動化する。 | 既存 Makefile（13 ターゲット）、README、CI、LICENSE |
 
-<p align="center"><sub>表 2 — リポジトリ二分割の役割と提供物。</sub></p>
+<p align="center"><sub>表 3 — リポジトリ二分割の役割と提供物。</sub></p>
 
-### 2.2 コンポーネント関係
+### 3.2 コンポーネント関係
 
 ```mermaid
 flowchart TB
@@ -105,13 +168,13 @@ flowchart TB
     dk -.->|"Advertise / GATT"| dongle
 ```
 
-<p align="center"><sub>図 2 — このリポジトリ・submodule・検証用デバイス（DK／ドングル／iPhone）の構成と、書き込み・接続・観測の経路。</sub></p>
+<p align="center"><sub>図 3 — このリポジトリ・submodule・検証用デバイス（DK／ドングル／iPhone）の構成と、書き込み・接続・観測の経路。</sub></p>
 
-### 2.3 submodule を選ぶ理由
+### 3.3 submodule を選ぶ理由
 
 取り込む方式は submodule とする。要点は、**submodule のコミットをこのリポジトリが明示的にピン留めでき、submodule が独立リポジトリとして単体でも使える**こと。
 
-## 3. リポジトリ構成
+## 4. リポジトリ構成
 
 ```text
 CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
@@ -144,7 +207,7 @@ CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
     url = https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap.git
 ```
 
-## 4. 3 フェーズ設計
+## 5. 3 フェーズ設計
 
 検証は次の 3 フェーズを順に確定させる。各フェーズは「目的 → Makefile が自動化する範囲 → 人間が行う確認 → 完了条件」で定義する。**人間の確認（実機の目視・GUI 操作）はフェーズの完了条件には含むが、Makefile の責務には含めない**（[6 章](#6-機械検証と人間検証の境界)）。
 
@@ -156,9 +219,9 @@ flowchart LR
     P1 --> P2 --> P3
 ```
 
-<p align="center"><sub>図 3 — 検証は 3 フェーズを順に確定させる（DUT → 観測手段 → 検証主体）。</sub></p>
+<p align="center"><sub>図 4 — 検証は 3 フェーズを順に確定させる（DUT → 観測手段 → 検証主体）。</sub></p>
 
-### 4.1 Phase 1 — 開発キット単体の動作確認
+### 5.1 Phase 1 — 開発キット単体の動作確認
 
 **目的:** nRF52840 DK が正常な BLE Peripheral として動作する状態を確定する。
 
@@ -168,7 +231,7 @@ flowchart LR
 | peripheral_uart（Nordic UART Service）を書き込み | ○ submodule の `flash-dk`（既定サンプル） | — |
 | iPhone の nRF Connect for Mobile から接続し文字列の往復を確認 | ×（GUI 操作） | RX/TX で文字列が往復すること |
 
-<p align="center"><sub>表 3 — Phase 1 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
+<p align="center"><sub>表 4 — Phase 1 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
 
 **blinky の実現（重要な設計判断）:** submodule の Makefile の `build-firmware` / `flash-dk` は `SAMPLE_DIR` と `BUILD_DIR` を変数化している。blinky は NCS ソースツリー内の `zephyr/samples/basic/blinky` に存在するため、**submodule に新ターゲットを追加せず**、変数上書きだけで書き込める。
 
@@ -183,7 +246,7 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 
 **完了条件:** blinky で LED 点滅を確認し、peripheral_uart 書き込み後に nRF Connect for Mobile で文字列の往復が取れること。これをもって DUT を確定する。
 
-### 4.2 Phase 2 — プロトコルアナライザ運用の確立
+### 5.2 Phase 2 — プロトコルアナライザ運用の確立
 
 **目的:** 開発キットと iPhone の BLE 通信を観測できる状態を確定する。
 
@@ -194,11 +257,11 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 | Wireshark のインタフェース一覧に「nRF Sniffer for Bluetooth LE」が出現することを確認 | △ `tshark -D` に sniffer が現れるかを機械判定可（submodule の `verify` が実施） | Wireshark GUI 上での表示 |
 | Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズを観測 | ×（キャプチャの読解） | 各フェーズがキャプチャに現れること |
 
-<p align="center"><sub>表 4 — Phase 2 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
+<p align="center"><sub>表 5 — Phase 2 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
 
 **完了条件:** Wireshark に Sniffer インタフェースが現れ、DK ↔ iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズが観測できること。これをもって観測手段を確定する。
 
-### 4.3 Phase 3 — Xcode で Central 最小実装
+### 5.3 Phase 3 — Xcode で Central 最小実装
 
 **目的:** 自作の Core Bluetooth Central が、Phase 1 で確定した peripheral_uart 搭載 DK と一連の手順で通信できる状態を確定し、その通信を Phase 2 の Sniffer で裏取りする。
 
@@ -209,7 +272,7 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 | `scan → connect → discoverServices → discoverCharacteristics → readValue/setNotifyValue` の一連動作 | ×（実機ビルド・署名・実行） | アプリ上で一連が流れること |
 | 同一通信を Wireshark で観測し、Swift 実装が出すバイト列を可視化 | ×（キャプチャの読解） | Sniffer 上で Swift 由来のバイト列が見えること |
 
-<p align="center"><sub>表 5 — Phase 3 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
+<p align="center"><sub>表 6 — Phase 3 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
 
 接続先は Phase 1 で構築した peripheral_uart 搭載 DK とする。
 
@@ -235,74 +298,11 @@ sequenceDiagram
     DK-->>Sniffer: ATT Write / Handle Value Notification（バイト列）
 ```
 
-<p align="center"><sub>図 4 — 自作 Central と DK の一連の通信（scan→connect→MTU→GATT→notify）を Sniffer が傍受する。</sub></p>
+<p align="center"><sub>図 5 — 自作 Central と DK の一連の通信（scan→connect→MTU→GATT→notify）を Sniffer が傍受する。</sub></p>
 
 **完了条件:** 自作 Central が DK と上記フローを完走し、同じ通信が Wireshark 上でも観測できること。これをもって検証主体を確定し、Core Bluetooth 検証環境の構築を完了とする。
 
 **iOSAppTemplate の扱い（設計判断）:** iOSAppTemplate は Genesis ベースのテンプレートで、雛形（XcodeGen `project.yml` を含むアプリ一式）を生成する。これを**一度だけ**使って雛形を作り、その source of truth（`project.yml` と Swift ソース）をこのリポジトリに固定する。**`make` 実行時に iOSAppTemplate へは依存しない**（テンプレが破壊的に変わっても影響を受けない）。`make generate-central` は同梱の `project.yml` を `xcodegen generate` するだけ。追跡するのは `project.yml` と Swift ソースで、生成物（`.xcodeproj`・`Info.plist`）は `.gitignore` する。
-
-## 5. Make ターゲット設計
-
-この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。この使い勝手こそが最重要の設計対象である。
-
-**準備は `make setup` の一回だけである。** `setup` は検証に必要なものを全部まとめて用意する。具体的には、ツール（nrfutil・Wireshark 等）の導入、nRF Connect SDK の取得、開発キットへ書き込む 2 種類のファームウェア（blinky と peripheral_uart）のビルド、Sniffer を Wireshark から使うためのプラグイン配置、そして Xcode の Central プロジェクトの生成までを含む。この準備には実機もマウス操作も要らず、パソコン上で完結する。何度実行しても同じ状態に行き着く（冪等）ため、途中で失敗しても、設定を変えても、`make setup` を打ち直せば済む。
-
-**準備が終わったら、実機をつないで、この環境でできることを個別のコマンドで試す。** コマンドは次の 4 つである。
-
-- `make flash-blinky` — 開発キットに blinky を書き込み、基板の LED が点滅するのを見る。
-- `make flash-peripheral` — 開発キットに peripheral_uart を書き込み、iPhone から接続して文字列が往復するのを見る。
-- `make capture` — ドングルに Sniffer を書き込み、Wireshark で電波上のやり取りを覗く。
-- `make open-central` — Xcode プロジェクトを開き、自分で書いた Central アプリを動かす。
-
-**この 4 つに決まった実行順序はない。** どれから始めてもよく、同じものを何度繰り返してもよい。たとえば「peripheral_uart を書き込み直して、もう一度キャプチャを取り直す」「Central アプリを直して、また開いて試す」といったことを、好きな順で何度でもできる。ビルドは `setup` で済ませてあるため、これらのコマンドは「書き込む」「開く」だけを担い、すぐ動く。
-
-実装上は、このリポジトリが submodule へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲し、submodule の冪等性をそのまま受け継ぐ（D-8）。実機への書き込みと GUI 起動は `setup` には一切含めず、これらのコマンド側の役割とする。
-
-### 5.1 ターゲット一覧
-
-| 区分 | ターゲット | 委譲先 / 動作 | 責務 |
-| --- | --- | --- | --- |
-| — | `help` | — | 既定ゴール。`## 注記`から一覧を自動生成。副作用なし。 |
-| 準備 | `init` | `git submodule update --init` | submodule の取得・更新（`setup` が内部で呼ぶ）。 |
-| 準備 | `setup` | submodule の `setup` ＋ `build-firmware`(blinky) ＋ `install-sniffer` ＋ `generate-central` | **検証に必要なものを全部用意する。** 実機/GUI 不要・冪等。 |
-| 準備 | `generate-central` | 同梱 `project.yml` を `xcodegen generate` | Central の `.xcodeproj` を生成（`setup`/`open-central` が呼ぶ。iOSAppTemplate 非依存）。 |
-| できること① 開発キット | `flash-blinky` | submodule の `flash-dk`（blinky 上書き） | blinky を焼いて LED 点滅を見る。 |
-| できること① 開発キット | `flash-peripheral` | submodule の `flash-dk` | peripheral_uart を焼く（nRF Connect で往復）。 |
-| できること② アナライザ | `capture` | submodule の `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
-| できること③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
-| — | `verify` | submodule の `verify` | 機械検査（読み取り専用＋[y/N]書込確認）。 |
-| — | `clean` | submodule の `clean` ＋ このリポジトリの `build/` 削除 | ビルド成果物を削除（central プロジェクトは残す）。 |
-
-<p align="center"><sub>表 6 — make ターゲット一覧（区分・委譲先・責務）。</sub></p>
-
-### 5.2 準備と「この環境でできること」のグラフ
-
-`make setup` が 4 つの準備ステップへ扇状に展開し、各コマンドは独立に submodule へ委譲する。
-
-```mermaid
-graph TD
-    subgraph build["準備（make setup / 実機・GUI 不要・冪等）"]
-        setup["make setup"]
-        setup --> s1["submodule setup<br/>ツール導入＋NCS＋peripheral_uart ビルド"]
-        setup --> s2["submodule build-firmware<br/>blinky ビルド"]
-        setup --> s3["submodule install-sniffer<br/>extcap 配置"]
-        setup --> s4["generate-central<br/>project.yml を xcodegen で .xcodeproj 化"]
-    end
-
-    subgraph play["この環境でできること（実機をつないで個別に実行・順不同）"]
-        fb["make flash-blinky"] --> p1["submodule flash-dk（blinky）"]
-        fp["make flash-peripheral"] --> p2["submodule flash-dk"]
-        cap["make capture"] --> p3["submodule flash-sniffer-dongle → Wireshark 起動"]
-        oc["make open-central"] --> p4["open *.xcodeproj"]
-    end
-```
-
-<p align="center"><sub>図 5 — make setup が 4 つの準備ステップへ展開し、各コマンドは独立に submodule へ委譲する。</sub></p>
-
-### 5.3 冪等性と実行順序
-
-- `setup` の各ステップは状態検査つきで冪等（submodule のガード＋`generate-central` の存在検査）。再実行は同一状態へ収束する。
-- 各コマンド（この環境でできること）は**独立・再入可能**で、決まった順序を持たない。FW の再書き込みは結果状態を変えないため実質冪等。`open-central` は何度開いてもよい。`generate-central` は同梱 `project.yml` から `xcodegen` で `.xcodeproj` を何度でも再生成できる（冪等）。
 
 ## 6. 機械検証と人間検証の境界
 
