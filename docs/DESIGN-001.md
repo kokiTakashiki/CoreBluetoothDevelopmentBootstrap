@@ -8,11 +8,9 @@
 > | 日付 | 2026-06-03 |
 > | 対象ホスト | Apple Silicon Mac |
 
-## このドキュメントの目的
-
-本リポジトリ `CoreBluetoothDevelopmentBootstrap` は、**Core Bluetooth（BLE）の検証環境を `make` 一つで用意するリポジトリ**である。本書はその構成・責務分割・Make ターゲット設計・検証範囲を定義する現状の原典である。経緯・選択の理由は末尾の[意思決定ログ](#意思決定ログ)に集約する。
-
 ## 1. 背景と目的
+
+本リポジトリ `CoreBluetoothDevelopmentBootstrap` は、**Core Bluetooth（BLE）の検証環境を `make` 一つで用意するリポジトリ**である。本書はその構成・責務分割・Make ターゲット設計・検証範囲を定義する現状の原典で、経緯・選択の理由は末尾の[意思決定ログ](#意思決定ログ)に集約する。
 
 iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が揃って初めて成立する。
 
