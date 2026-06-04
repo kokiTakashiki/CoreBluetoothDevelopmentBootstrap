@@ -7,17 +7,12 @@
 > | Doc ID | DESIGN-001 |
 > | 日付 | 2026-06-03 |
 > | 対象ホスト | Apple Silicon Mac |
-> | 位置づけ | リポジトリ再設計（旧 DESIGN-001 を破棄し、本書で全面的に置き換える） |
 
 ## このドキュメントの目的
 
-本リポジトリ `CoreBluetoothDevelopmentBootstrap` を、**Core Bluetooth（BLE）の検証環境を `make` 一つで用意するリポジトリ**として再設計する。その構成・責務分割・Make ターゲット設計・検証範囲を定義し、実装フェーズへ引き継ぐ。
+本リポジトリ `CoreBluetoothDevelopmentBootstrap` は、**Core Bluetooth（BLE）の検証環境を `make` 一つで用意するリポジトリ**である。本書はその構成・責務分割・Make ターゲット設計・検証範囲を定義する現状の原典である。経緯・選択の理由は末尾の[意思決定ログ](#意思決定ログ)に集約する。
 
-## 1. 背景と再設計の動機
-
-### 1.1 旧構成の問題
-
-旧リポジトリは「Core Bluetooth（BLE）の検証環境を自動構築する Makefile を提供する」と謳っていたが、実体は **nRF52840 DK（PCA10056）と nRF52840 MDBT50Q USB ドングルのセットアップに閉じていた**。すなわち「対向に置く Peripheral と、通信を覗く Sniffer」を立ち上げるだけで、肝心の **iOS Central 側（Core Bluetooth そのもの）が検証フローに含まれていなかった**。
+## 1. 背景と目的
 
 iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が揃って初めて成立する。
 
@@ -25,15 +20,13 @@ iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が�
 2. **観測手段** — 通信を可視化するプロトコルアナライザ（Sniffer）
 3. **検証主体** — 自分が書く Core Bluetooth の Central 実装
 
-旧構成は 1 と 2 だけを提供しており、名前（Core Bluetooth）と実体（nRF ハードのセットアップ）が乖離していた。
+本リポジトリは、この三者を `make` でまとめて用意する。nRF ハード固有の立ち上げ（1 と 2）は独立リポジトリ（submodule）に閉じ、このリポジトリは三者をまとめる役（3 フェーズ）と Central 実装の足場を担う。狙いは次の三点。
 
-### 1.2 再設計の方針
-
-nRF ハード固有の立ち上げ（1 と 2）を独立リポジトリへ切り出し、submodule として取り込む。このリポジトリは、その三者を `make` でまとめて用意する役（3 フェーズ）に専念する。これにより、
-
-- **名実の一致** — 本リポジトリは「Core Bluetooth 検証環境」を名乗るにふさわしい、Central 実装までを含む全体を提供する。
+- **名実の一致** — 「Core Bluetooth 検証環境」を名乗るにふさわしい、Central 実装までを含む全体を提供する。
 - **関心の分離** — nRF ハードの面倒（NCS ツールチェーン・ファームウェアビルド・書き込み・Sniffer）は submodule に閉じ、独立して再利用・進化できる。
 - **置き換え可能性** — 将来 Peripheral を別ハード（別ボード／市販の BLE デバイス）に差し替えても、このリポジトリ側の 3 フェーズ構造は不変。
+
+二分割に至った経緯は[意思決定ログ D-1](#意思決定ログ)を参照。
 
 ## 2. 全体アーキテクチャ
 
@@ -43,8 +36,6 @@ nRF ハード固有の立ち上げ（1 と 2）を独立リポジトリへ切り
 | --- | --- | --- |
 | **`CoreBluetoothDevelopmentBootstrap`**（このリポジトリ） | Core Bluetooth 検証環境を `make` で用意する。3 フェーズをまとめ、Central 実装の足場まで用意する。 | Makefile、本設計書、Central のソース（project.yml＋Swift）、submodule の取り込み |
 | **`kokiTakashiki/nrf52840-ble-debug-bootstrap`**（submodule） | nRF52840 製の BLE デバッグ環境（Peripheral＋Sniffer）。NCS 導入・FW ビルド・実機書き込み・Sniffer を冪等に自動化する。 | 既存 Makefile（13 ターゲット）、README、CI、LICENSE |
-
-この submodule は旧リポジトリの Makefile 一式をそのまま移設したものである（`docs/DESIGN-001.md` は文体不備のため移設せず破棄。詳細は[意思決定ログ D-3](#意思決定ログ)）。
 
 ### 2.2 コンポーネント関係
 
@@ -84,23 +75,23 @@ flowchart TB
 
 取り込む方式は submodule とする。代替（subtree / 単純コピー / パッケージ依存）と比較した結論は[意思決定ログ D-2](#意思決定ログ)に記す。要点は、**submodule のコミットをこのリポジトリが明示的にピン留めでき、submodule が独立リポジトリとして単体でも使える**こと。
 
-## 3. リポジトリ構成（目標状態）
+## 3. リポジトリ構成
 
 ```text
 CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
-├── Makefile                              # make の入口（3 フェーズ）（新規）
-├── README.md                             # 「Core Bluetooth 検証環境」として書き直し
-├── LICENSE                               # MIT（据え置き）
-├── .gitmodules                           # submodule の宣言（新規）
+├── Makefile                              # make の入口（3 フェーズ）
+├── README.md                             # 使い方・コマンド一覧
+├── LICENSE                               # MIT
+├── .gitmodules                           # submodule の宣言
 ├── docs/
-│   └── DESIGN-001.md                     # 本書（旧内容を全面置換）
+│   └── DESIGN-001.md                     # 本書（構成設計書）
 ├── external/
 │   └── nrf52840-ble-debug-bootstrap/     # submodule
-│       ├── Makefile                      #   移設した既存 Makefile
+│       ├── Makefile                      #   環境構築 Makefile（13 ターゲット）
 │       ├── README.md
 │       ├── LICENSE
 │       └── .github/workflows/idempotency.yml
-├── central/                              # Phase 3 用（新規・Central のソースを同梱）
+├── central/                              # Phase 3 用（Central のソースを同梱）
 │   └── BLECentralSample/                 #   project.yml ＋ Swift ソース（commit）
 │       ├── project.yml                   #     XcodeGen 定義（.xcodeproj の source of truth）
 │       └── BLECentralSample/*.swift      #     AppDelegate/SceneDelegate/VC/BLECentral
@@ -109,7 +100,7 @@ CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
     └── workflows/                        # このリポジトリの機械ゲート（parse-lint など）
 ```
 
-`.gitmodules` の宣言（実行フェーズで `git submodule add` が生成する想定）:
+`.gitmodules` の宣言:
 
 ```ini
 [submodule "external/nrf52840-ble-debug-bootstrap"]
@@ -273,29 +264,9 @@ graph TD
 | 機械検証（実機・任意） | submodule の `verify`（`tshark -D` に Sniffer が出現するか、BLE トラフィックを検出できるか） | `make verify`（要実機） |
 | 人間の確認 | LED 点滅・nRF Connect での文字列往復・Wireshark GUI 上のフェーズ観測・Xcode でのアプリ実行 | 開発者 |
 
-> Phase 3 の Xcode ビルド・iOS 実機署名・アプリ実行は GUI と手動承認を要し、Make の冪等性が保証できないため自動化対象外とする（submodule の Makefile が Xcode を対象外としていた方針を、このリポジトリでも踏襲する）。
+> Phase 3 の Xcode ビルド・iOS 実機署名・アプリ実行は GUI と手動承認を要し、Make の冪等性が保証できないため自動化対象外とする（submodule の Makefile が Xcode を対象外としている方針を、このリポジトリでも踏襲する）。
 
-## 7. 移行（実行）計画
-
-本設計の承認後に実施する機械的手順。順序に依存があるため番号順に行う。
-
-1. **submodule 用リポジトリの作成と移設**
-   - `kokiTakashiki/nrf52840-ble-debug-bootstrap`（public）を作成。
-   - このリポジトリから `Makefile` / `README.md` / `LICENSE` / `.github/workflows/idempotency.yml` / `.gitignore` を移設（中身は据え置き）。**`docs/DESIGN-001.md` は移設しない（破棄）。**
-   - README を submodule 単体の文脈（nRF52840 製 BLE デバッグ環境）へ微修正。
-2. **このリポジトリからの除去と submodule 化**
-   - このリポジトリから移設対象ファイルを削除。
-   - `git submodule add https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap.git external/nrf52840-ble-debug-bootstrap`。
-3. **このリポジトリの新規実装**
-   - このリポジトリの `Makefile`（準備＋「この環境でできること」の二段階インターフェース。`setup` ＋ `flash-blinky`/`flash-peripheral`/`capture`/`open-central`）を追加。
-   - `central/BLECentralSample/`（`project.yml` ＋ Swift ソース）を同梱し、`generate-central`（`xcodegen generate`）を実装。
-   - このリポジトリの README を「Core Bluetooth 検証環境」として書き直し。
-   - このリポジトリの `docs/DESIGN-001.md`（本書）を確定。
-   - このリポジトリの CI（parse-lint・submodule 整合）を追加。
-
-> submodule に新ターゲットを追加する変更は不要（Phase 1 の blinky は変数上書きで実現）。submodule の Makefile は無改変で移設できる。
-
-> **CI の所在:** 既存 `.github/workflows/idempotency.yml` は **nRF Makefile の 13 ターゲットを検証する submodule 側のテスト**（`make -n setup` の needle 確認、`install-nrfutil` smoke、冪等性）であり、対象 Makefile とともに submodule へ移設する。このリポジトリに残すとこのリポジトリの Makefile（別ターゲット体系）と噛み合わず壊れる。このリポジトリには別物の新 CI（Makefile の dry-run パース ＋ `.gitmodules` の URL/パス整合チェック）を用意する（[6 章](#6-機械検証と人間検証の境界)）。
+> **CI の所在:** `.github/workflows/idempotency.yml`（nRF Makefile の 13 ターゲットを検証するテスト）は submodule 側に置き、対象 Makefile と同居させる。このリポジトリには別物の CI（Makefile の dry-run パース ＋ `.gitmodules` の URL/パス整合チェック）を置く。両者はターゲット体系が異なるため分離している。
 
 ## 意思決定ログ
 
