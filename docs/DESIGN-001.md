@@ -29,7 +29,7 @@ iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が�
 2. **観測手段** — 通信を可視化するプロトコルアナライザ（Sniffer）
 3. **検証主体** — 自分が書く Core Bluetooth の Central 実装
 
-この三者は次の図で示す関係にある。Central（③）が Peripheral（①）へ BLE で接続して通信し、その電波を Sniffer（②）が傍受して可視化する。
+この三者は次の図で示す関係にある。
 
 ```mermaid
 flowchart LR
@@ -40,7 +40,15 @@ flowchart LR
     central <==>|"BLE で接続・通信"| peripheral
     central -.->|"電波を捕捉"| sniffer
     peripheral -.->|"電波を捕捉"| sniffer
+
+    subgraph legend["凡例"]
+        direction LR
+        L1[" "] ==>|"BLE 接続・通信"| L2[" "]
+        L3[" "] -.->|"電波の傍受"| L4[" "]
+    end
 ```
+
+**図 1**: Central（③）が Peripheral（①）へ BLE で接続して通信し、その電波を Sniffer（②）が傍受して可視化する。
 
 本リポジトリでは、この三者を `make` でまとめて用意する。nRF ハード固有の立ち上げ（1 と 2）は独立リポジトリ（submodule）に閉じ、このリポジトリは三者をまとめる役（3 フェーズ）と Central 実装の足場を担う。狙いは次の表で示す三点。
 
