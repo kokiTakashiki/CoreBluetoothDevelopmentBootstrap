@@ -1,4 +1,3 @@
 [submodule "external/nrf52840-ble-debug-bootstrap"]
 	path = external/nrf52840-ble-debug-bootstrap
 	url = https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap.git
-	branch = main
