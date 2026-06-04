@@ -1,10 +1,11 @@
 # Build artifacts（blinky ビルドを submodule 委譲で親 build/ へ出す）
 /build/
 
-# Central scaffold（生成物は追跡しない。reference/ と README のみ追跡）
-/central/*
-!/central/README.md
-!/central/reference/
+# Central: 生成物は追跡しない。
+# iOSAppTemplate(Genesis) が生成したアプリ（central/<appName>/）とテンプレ clone
+# キャッシュ（central/.iOSAppTemplate/）は生成物。追跡するのは central 直下の
+# central-options.yml・BLECentral.swift・README.md のみ。
+/central/*/
 
 # macOS
 .DS_Store

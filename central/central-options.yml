@@ -1,0 +1,21 @@
+# iOSAppTemplate（Genesis）で Central サンプルアプリを生成するためのオプション。
+#
+# `make generate-central` がこのファイルを Genesis の --option-path に渡し、
+# 非対話で central/<appName>/ にアプリ一式を生成する（生成物は .gitignore）。
+# 値を変えれば、生成されるアプリ名・Bundle ID・対応言語などを調整できる。
+#
+# 注意: appName を変えたら、親 Makefile の APP_NAME も合わせること
+#       （例: make generate-central APP_NAME=MyCentral）。
+appName: BLECentralSample
+bundlePrefix: com.example.ble
+deploymentTarget: "17.0"
+developmentLanguage: ja
+supportedLanguages: ja
+organizationName: kokiTakashiki
+developmentTeam: "" # automatic 署名の Team ID（空でも可。後で project.yml に設定できる）
+usePersistence: false
+usePreferences: false
+# 以下はテンプレ側で既定があるが、再現性のため固定しておく
+swiftToolchain: "6.3.2"
+rubyVersion: "3.4.9"
+copyrightYear: "2026"

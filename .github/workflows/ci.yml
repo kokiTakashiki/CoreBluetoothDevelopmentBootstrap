@@ -30,7 +30,7 @@ jobs:
       - name: 準備/確認のターゲットが定義済み
         run: |
           db="$(make -rpn 2>/dev/null || true)"
-          for t in help init setup scaffold-central \
+          for t in help init setup generate-central \
                    flash-blinky flash-peripheral capture open-central verify clean; do
             echo "$db" | grep -q "^$t:" || { echo "未定義ターゲット: $t"; exit 1; }
           done
@@ -38,7 +38,7 @@ jobs:
       - name: .PHONY に全ターゲットが含まれる
         run: |
           phony="$(grep -A2 '^\.PHONY:' Makefile | tr '\\\n' ' ')"
-          for t in help init setup scaffold-central \
+          for t in help init setup generate-central \
                    flash-blinky flash-peripheral capture open-central verify clean; do
             echo "$phony" | grep -qw "$t" || { echo ".PHONY 欠落: $t"; exit 1; }
           done

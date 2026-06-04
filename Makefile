@@ -57,7 +57,7 @@ help: ## このヘルプ（ターゲット一覧）を表示
 #     - ツール導入＋NCS 取得＋peripheral_uart ビルド（子の setup）
 #     - blinky ビルド
 #     - Sniffer extcap 配置（子の install-sniffer）
-#     - Xcode Central プロジェクト生成（scaffold-central）
+#     - Xcode Central プロジェクト生成（generate-central）
 #   実機書き込みと GUI 起動は一切含めない（それは確認コマンド側）。
 # ============================================================
 init: ## submodule（子）を取得・更新
@@ -72,26 +72,39 @@ setup: init ## 3 つの検証環境を全部組み上げる（冪等・実機/GU
 	$(MAKE) -C $(SUBMODULE_DIR) build-firmware SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
 	@echo "--> [3/4] Sniffer extcap 配置"
 	$(MAKE) -C $(SUBMODULE_DIR) install-sniffer
-	@echo "--> [4/4] Xcode Central プロジェクト生成"
-	@$(MAKE) --no-print-directory scaffold-central
+	@echo "--> [4/4] Xcode Central プロジェクト生成（iOSAppTemplate）"
+	@$(MAKE) --no-print-directory generate-central
 	@echo ""
 	@echo "==> setup 完了。実機をつないで以下を試せます:"
 	@echo "    make flash-blinky / make flash-peripheral / make capture / make open-central"
 
-scaffold-central: ## Central の Xcode プロジェクトを生成（iOSAppTemplate 展開＋履歴切離）
-	@if [ -d "$(CENTRAL_DIR)/$(APP_NAME)" ]; then \
-		echo "    [skip] $(CENTRAL_DIR)/$(APP_NAME) は生成済み"; \
-	else \
-		echo "    [scaffold] $(TEMPLATE_URL) → $(CENTRAL_DIR)/$(APP_NAME)"; \
-		if git clone --depth 1 "$(TEMPLATE_URL)" "$(CENTRAL_DIR)/$(APP_NAME)"; then \
-			rm -rf "$(CENTRAL_DIR)/$(APP_NAME)/.git"; \
-			echo "    [done] git 履歴を切離。$(CENTRAL_DIR)/reference/BLECentral.swift を組み込んでください。"; \
-		else \
-			echo "ERROR(scaffold-central): テンプレート取得に失敗しました: $(TEMPLATE_URL)" >&2; \
-			echo "  手動で $(CENTRAL_DIR)/$(APP_NAME) に新規 Xcode プロジェクトを用意してください。" >&2; \
-			exit 1; \
-		fi; \
+# Central アプリは iOSAppTemplate(Genesis) で実装フェーズに生成する。
+# リポジトリが追跡するのは生成オプション(central-options.yml)と注入する
+# BLECentral.swift だけで、生成物（アプリ一式・.xcodeproj）は .gitignore（D-7）。
+generate-central: init ## Central アプリを iOSAppTemplate(Genesis) で生成し xcodegen で .xcodeproj 化
+	@echo "==> generate-central: iOSAppTemplate(Genesis) で Central アプリを生成します"
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@mint which yonaskolb/Genesis >/dev/null 2>&1 || mint install yonaskolb/Genesis
+	@command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+	@if [ ! -d "$(CENTRAL_DIR)/.iOSAppTemplate" ]; then \
+		echo "    [clone] $(TEMPLATE_URL)"; \
+		git clone --depth 1 "$(TEMPLATE_URL)" "$(CENTRAL_DIR)/.iOSAppTemplate"; \
 	fi
+	@if [ -d "$(CENTRAL_DIR)/$(APP_NAME)" ]; then \
+		echo "    [skip] $(CENTRAL_DIR)/$(APP_NAME) は生成済み（作り直すなら make clean 後）"; \
+	else \
+		echo "    [generate] Genesis → $(CENTRAL_DIR)/$(APP_NAME)"; \
+		( cd "$(CENTRAL_DIR)/.iOSAppTemplate" && \
+		  mint run yonaskolb/Genesis genesis generate genesis.yml \
+		    --destination "$(CURDIR)/$(CENTRAL_DIR)" \
+		    --option-path "$(CURDIR)/$(CENTRAL_DIR)/central-options.yml" \
+		    --non-interactive ); \
+		cp "$(CENTRAL_DIR)/BLECentral.swift" "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME)/BLECentral.swift"; \
+		echo "    [inject] BLECentral.swift を生成アプリへ配置"; \
+	fi
+	@echo "    [xcodegen] .xcodeproj を生成"
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && xcodegen generate )
+	@echo "==> generate-central: 完了 ($(CENTRAL_DIR)/$(APP_NAME))"
 
 # ============================================================
 # 確認（setup 後、実機をつないで試す）
@@ -115,14 +128,14 @@ capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshar
 	@echo "    DK↔iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery を観測してください。"
 	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
 
-open-central: init ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
+open-central: generate-central ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
 	@proj="$$(ls -d $(CENTRAL_DIR)/$(APP_NAME)/*.xcworkspace $(CENTRAL_DIR)/$(APP_NAME)/*.xcodeproj 2>/dev/null | head -n1 || true)"; \
 	if [ -z "$$proj" ]; then \
-		echo "ERROR(open-central): Xcode プロジェクトが見つかりません。先に 'make setup' を実行してください。" >&2; \
+		echo "ERROR(open-central): Xcode プロジェクトが見つかりません（generate-central に失敗）。" >&2; \
 		exit 1; \
 	fi; \
 	echo "==> open-central: $$proj を開きます"; \
-	echo "    $(CENTRAL_DIR)/reference/BLECentral.swift を組み込み、Phase 1 の DK へ"; \
+	echo "    注入済み BLECentral.swift を使い、Phase 1 の DK へ"; \
 	echo "    scan→connect→discoverServices→discoverCharacteristics→readValue/setNotifyValue を実行してください。"; \
 	open "$$proj"
 
@@ -132,10 +145,11 @@ open-central: init ## ③ Central: Xcode プロジェクトを開いてアプリ
 verify: init ## 機械検査（子へ委譲 / 読み取り専用＋[y/N]書込確認）
 	$(MAKE) -C $(SUBMODULE_DIR) verify
 
-clean: ## ビルド成果物を削除（central プロジェクトは残す）
+clean: ## ビルド成果物・生成物を削除（追跡対象の central ソースは残す）
 	-@$(MAKE) -C $(SUBMODULE_DIR) clean
 	@rm -rf "$(CURDIR)/build"
+	@rm -rf "$(CENTRAL_DIR)/$(APP_NAME)" "$(CENTRAL_DIR)/.iOSAppTemplate"
 	@echo "==> clean: 完了"
 
-.PHONY: help init setup scaffold-central flash-blinky flash-peripheral \
+.PHONY: help init setup generate-central flash-blinky flash-peripheral \
         capture open-central verify clean

@@ -1,16 +1,19 @@
 import CoreBluetooth
 import Foundation
 
-/// Nordic UART Service（NUS）を相手取る Central の最小参照実装。
+/// Nordic UART Service（NUS）を相手取る Central の最小実装。
 ///
 /// DESIGN-001 Phase 3 の「検証主体」を満たす最小コード。
 /// scan → connect → discoverServices → discoverCharacteristics →
 /// setNotifyValue / writeValue の一連を示す。接続先は Phase 1 で構築した
 /// peripheral_uart 搭載の nRF52840 DK。
 ///
-/// 使い方（Xcode 側）:
-///   let central = BLECentral()        // 生成と同時に scan を開始する
-///   central.send("hello")             // RX 特性へ書き込み（往復確認）
+/// このファイルは `make generate-central` が iOSAppTemplate(Genesis) で生成した
+/// アプリへ自動で注入する（生成アプリのソースに含まれ、xcodegen が拾う）。
+/// 生成アプリのどこか（例: SceneDelegate）で `BLECentral()` を生成すれば動く。
+///
+///   let central = BLECentral()   // 生成と同時に scan を開始する
+///   central.send("hello")        // RX 特性へ書き込み（往復確認）
 final class BLECentral: NSObject {
     // NUS の UUID 群（Nordic 定義）
     static let nusService = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
