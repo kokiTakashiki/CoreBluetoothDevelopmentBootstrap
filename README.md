@@ -67,7 +67,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 
 | 区分 | コマンド | 説明 |
 | --- | --- | --- |
-| 準備 | `make setup` | 検証に必要なものを全部用意する（実機/GUI 不要・冪等）。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
+| 準備 | `make setup` | 検証に必要なものを全部用意する。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
 | できること | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
 | できること | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
 | できること | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
