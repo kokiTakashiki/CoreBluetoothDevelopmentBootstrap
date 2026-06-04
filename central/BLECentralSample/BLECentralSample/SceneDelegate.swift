@@ -23,7 +23,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
         let window = UIWindow(windowScene: windowScene)
-        window.rootViewController = BLECentralViewController()
+        window.rootViewController = CentralViewController()
         self.window = window
         window.makeKeyAndVisible()
     }

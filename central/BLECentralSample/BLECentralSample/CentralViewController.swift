@@ -1,5 +1,5 @@
 //
-//  BLECentralViewController.swift
+//  CentralViewController.swift
 //  BLECentralSample
 //
 //  Core Bluetooth の Central を最小で実装したガイド付き教材。
@@ -24,7 +24,7 @@
 import CoreBluetooth
 import UIKit
 
-final class BLECentralViewController: UIViewController {
+final class CentralViewController: UIViewController {
 
     // MARK: Nordic UART Service（NUS）の UUID
     // 相手（peripheral_uart）が公開する GATT。Service の中に RX/TX の 2 特性がある。
@@ -55,7 +55,7 @@ final class BLECentralViewController: UIViewController {
 }
 
 // MARK: - CBCentralManagerDelegate（Central 側: 状態・発見・接続）
-extension BLECentralViewController: CBCentralManagerDelegate {
+extension CentralViewController: CBCentralManagerDelegate {
 
     // 手順 1 — 状態が先。poweredOn になって初めてスキャンしてよい。
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -91,7 +91,7 @@ extension BLECentralViewController: CBCentralManagerDelegate {
 }
 
 // MARK: - CBPeripheralDelegate（接続先の GATT: サービス・特性・値）
-extension BLECentralViewController: CBPeripheralDelegate {
+extension CentralViewController: CBPeripheralDelegate {
 
     // 手順 4 — Service が見つかったら、その中の Characteristic を探索する。
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -141,7 +141,7 @@ extension BLECentralViewController: CBPeripheralDelegate {
 }
 
 // MARK: - ログビュー（UI は本質ではないので最小限）
-private extension BLECentralViewController {
+private extension CentralViewController {
     func setUpLogView() {
         view.backgroundColor = .systemBackground
         logView.isEditable = false

@@ -1,7 +1,7 @@
 # Core Bluetooth Central 実装ガイド
 
 初学者が **Core Bluetooth の設計思想**を、動く最小コードを読みながら学ぶためのガイド。
-題材は `BLECentralSample/BLECentralSample/BLECentralViewController.swift` 1 枚。
+題材は `BLECentralSample/BLECentralSample/CentralViewController.swift` 1 枚。
 peripheral_uart 搭載の nRF52840 DK へ接続し、Nordic UART Service の通信を流す。
 
 一次情報: Apple [About Core Bluetooth](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/AboutCoreBluetooth/Introduction.html)
