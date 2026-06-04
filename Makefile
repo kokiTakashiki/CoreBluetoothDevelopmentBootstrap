@@ -6,7 +6,7 @@
 #   準備
 #     make setup            検証に必要なものを全部用意する
 #
-#   確認（setup 後、実機をつないで順不同・何度でも試す）
+#   この環境でできること
 #     make flash-blinky     ① 開発キット: blinky を焼いて LED 点滅を見る
 #     make flash-peripheral ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 #     make capture          ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
