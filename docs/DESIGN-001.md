@@ -58,6 +58,8 @@ flowchart LR
 | **関心の分離** | nRF ハードの面倒（NCS ツールチェーン・ファームウェアビルド・書き込み・Sniffer）は submodule に閉じ、独立して再利用・進化できる。 |
 | **置き換え可能性** | 将来 Peripheral を別ハード（別ボード／市販の BLE デバイス）に差し替えても、このリポジトリ側の 3 フェーズ構造は不変。 |
 
+<p align="center"><sub>表 1 — 二分割の狙い（名実の一致・関心の分離・置き換え可能性）。</sub></p>
+
 ## 2. 全体アーキテクチャ
 
 ### 2.1 リポジトリ二分割
@@ -66,6 +68,8 @@ flowchart LR
 | --- | --- | --- |
 | **`CoreBluetoothDevelopmentBootstrap`**（このリポジトリ） | Core Bluetooth 検証環境を `make` で用意する。3 フェーズをまとめ、Central 実装の足場まで用意する。 | Makefile、本設計書、Central のソース（project.yml＋Swift）、submodule の取り込み |
 | **`kokiTakashiki/nrf52840-ble-debug-bootstrap`**（submodule） | nRF52840 製の BLE デバッグ環境（Peripheral＋Sniffer）。NCS 導入・FW ビルド・実機書き込み・Sniffer を冪等に自動化する。 | 既存 Makefile（13 ターゲット）、README、CI、LICENSE |
+
+<p align="center"><sub>表 2 — リポジトリ二分割の役割と提供物。</sub></p>
 
 ### 2.2 コンポーネント関係
 
@@ -100,6 +104,8 @@ flowchart TB
     dongle -->|"無線を捕捉"| wireshark
     dk -.->|"Advertise / GATT"| dongle
 ```
+
+<p align="center"><sub>図 2 — このリポジトリ・submodule・検証用デバイス（DK／ドングル／iPhone）の構成と、書き込み・接続・観測の経路。</sub></p>
 
 ### 2.3 submodule を選ぶ理由
 
@@ -150,6 +156,8 @@ flowchart LR
     P1 --> P2 --> P3
 ```
 
+<p align="center"><sub>図 3 — 検証は 3 フェーズを順に確定させる（DUT → 観測手段 → 検証主体）。</sub></p>
+
 ### 4.1 Phase 1 — 開発キット単体の動作確認
 
 **目的:** nRF52840 DK が正常な BLE Peripheral として動作する状態を確定する。
@@ -159,6 +167,8 @@ flowchart LR
 | Nordic 公式 Getting Started に従い blinky を書き込み | ○ submodule の `flash-dk` を blinky サンプルへ変数上書きして実行 | LED が点滅していること |
 | peripheral_uart（Nordic UART Service）を書き込み | ○ submodule の `flash-dk`（既定サンプル） | — |
 | iPhone の nRF Connect for Mobile から接続し文字列の往復を確認 | ×（GUI 操作） | RX/TX で文字列が往復すること |
+
+<p align="center"><sub>表 3 — Phase 1 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
 
 **blinky の実現（重要な設計判断）:** submodule の Makefile の `build-firmware` / `flash-dk` は `SAMPLE_DIR` と `BUILD_DIR` を変数化している。blinky は NCS ソースツリー内の `zephyr/samples/basic/blinky` に存在するため、**submodule に新ターゲットを追加せず**、変数上書きだけで書き込める。
 
@@ -184,6 +194,8 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 | Wireshark のインタフェース一覧に「nRF Sniffer for Bluetooth LE」が出現することを確認 | △ `tshark -D` に sniffer が現れるかを機械判定可（submodule の `verify` が実施） | Wireshark GUI 上での表示 |
 | Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズを観測 | ×（キャプチャの読解） | 各フェーズがキャプチャに現れること |
 
+<p align="center"><sub>表 4 — Phase 2 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
+
 **完了条件:** Wireshark に Sniffer インタフェースが現れ、DK ↔ iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズが観測できること。これをもって観測手段を確定する。
 
 ### 4.3 Phase 3 — Xcode で Central 最小実装
@@ -196,6 +208,8 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 | `CBCentralManager` / `CBCentralManagerDelegate` / `CBPeripheralDelegate` の最小実装 | ○ `BLECentral.swift`／`BLECentralViewController.swift` を同梱（アプリ内蔵）。署名・実行は開発者 | コードを読み・実機で動かす |
 | `scan → connect → discoverServices → discoverCharacteristics → readValue/setNotifyValue` の一連動作 | ×（実機ビルド・署名・実行） | アプリ上で一連が流れること |
 | 同一通信を Wireshark で観測し、Swift 実装が出すバイト列を可視化 | ×（キャプチャの読解） | Sniffer 上で Swift 由来のバイト列が見えること |
+
+<p align="center"><sub>表 5 — Phase 3 の手順と、Makefile の自動化範囲・人間の確認。</sub></p>
 
 接続先は Phase 1 で構築した peripheral_uart 搭載 DK とする。
 
@@ -220,6 +234,8 @@ sequenceDiagram
     DK-->>App: notify（readValue / didUpdateValue）
     DK-->>Sniffer: ATT Write / Handle Value Notification（バイト列）
 ```
+
+<p align="center"><sub>図 4 — 自作 Central と DK の一連の通信（scan→connect→MTU→GATT→notify）を Sniffer が傍受する。</sub></p>
 
 **完了条件:** 自作 Central が DK と上記フローを完走し、同じ通信が Wireshark 上でも観測できること。これをもって検証主体を確定し、Core Bluetooth 検証環境の構築を完了とする。
 
@@ -257,6 +273,8 @@ sequenceDiagram
 | — | `verify` | submodule の `verify` | 機械検査（読み取り専用＋[y/N]書込確認）。 |
 | — | `clean` | submodule の `clean` ＋ このリポジトリの `build/` 削除 | ビルド成果物を削除（central プロジェクトは残す）。 |
 
+<p align="center"><sub>表 6 — make ターゲット一覧（区分・委譲先・責務）。</sub></p>
+
 ### 5.2 準備と「この環境でできること」のグラフ
 
 `make setup` が 4 つの準備ステップへ扇状に展開し、各コマンドは独立に submodule へ委譲する。
@@ -279,6 +297,8 @@ graph TD
     end
 ```
 
+<p align="center"><sub>図 5 — make setup が 4 つの準備ステップへ展開し、各コマンドは独立に submodule へ委譲する。</sub></p>
+
 ### 5.3 冪等性と実行順序
 
 - `setup` の各ステップは状態検査つきで冪等（submodule のガード＋`generate-central` の存在検査）。再実行は同一状態へ収束する。
@@ -293,6 +313,8 @@ graph TD
 | 機械ゲート（CI） | このリポジトリの Makefile の全ターゲットが dry-run でパースできる／既定ゴールが副作用のない `help` である／`.gitmodules` の URL が宣言と一致する／submodule パスが存在する | GitHub Actions |
 | 機械検証（実機・任意） | submodule の `verify`（`tshark -D` に Sniffer が出現するか、BLE トラフィックを検出できるか） | `make verify`（要実機） |
 | 人間の確認 | LED 点滅・nRF Connect での文字列往復・Wireshark GUI 上のフェーズ観測・Xcode でのアプリ実行 | 開発者 |
+
+<p align="center"><sub>表 7 — 機械検証と人間検証の担い手の分離。</sub></p>
 
 > Phase 3 の Xcode ビルド・iOS 実機署名・アプリ実行は GUI と手動承認を要し、Make の冪等性が保証できないため自動化対象外とする（submodule の Makefile が Xcode を対象外としている方針を、このリポジトリでも踏襲する）。
 
@@ -314,6 +336,8 @@ graph TD
 | D-8 | このリポジトリは submodule へ `$(MAKE) -C` で委譲し、submodule の冪等性・関心分離（setup/deploy/verify）をそのまま継承する | submodule は冪等性と書き込み/検証分離を作り込み済み。このリポジトリはそれを再発明せず、まとめて呼び出すだけにとどめ、二重実装と挙動のずれを防ぐ。 |
 | D-9 | 機械検証（CI が回す dry-run パース・submodule 整合）と人間確認（LED・GUI・実機実行）を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
 | D-10 | `make` インターフェースを「**準備（`make setup` 一回）＋この環境でできること（独立した 4 コマンド）**」の二段階にする | 最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が「準備（ビルド・配置・生成）」と「実機で動かす（書き込み・GUI 起動）」を 1 ターゲットに混在させ、`setup` も 3 環境のうち 1 つ（peripheral_uart）しか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: UX / インターフェース設計（ユーザー指摘・承認済み）。 |
+
+<p align="center"><sub>表 8 — 意思決定ログ（解決した選択の記録）。</sub></p>
 
 ## 付録
 
