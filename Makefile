@@ -13,7 +13,7 @@
 #     make open-central     ③ Central: Xcode プロジェクトを開いてアプリを動かす
 #
 # nRF ハード固有の工程は submodule external/nrf52840-ble-debug-bootstrap へ委譲する。
-# 設計の詳細は docs/DESIGN-001.md（Mermaid 図つき）を参照。
+# 設計の詳細は docs/DESIGN-001.mdを参照。
 #
 # 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（対象外）。
 # ============================================================
