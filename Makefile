@@ -45,7 +45,7 @@ APP_NAME    ?= BLECentralSample
 help: ## このヘルプ（ターゲット一覧）を表示
 	@echo "Core Bluetooth（BLE）検証環境"
 	@echo ""
-	@echo "  1. まず make setup で検証に必要なものを全部用意する（実機/GUI 不要・冪等）"
+	@echo "  1. まず make setup で検証に必要なものを全部用意する"
 	@echo "  2. 実機をつないで、下のコマンドで確認したいものを順不同・何度でも試す"
 	@echo ""
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## .*$$' $(MAKEFILE_LIST) \
