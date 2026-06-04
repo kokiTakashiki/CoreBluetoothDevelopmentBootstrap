@@ -27,19 +27,19 @@ jobs:
           grep -q "3 フェーズ・オーケストレータ" /tmp/default.txt \
             || { echo "既定ゴールが help でない"; exit 1; }
 
-      - name: フェーズ/委譲ターゲットが定義済み
+      - name: 構築/プレイグラウンドのターゲットが定義済み
         run: |
           db="$(make -rpn 2>/dev/null || true)"
-          for t in help init setup phase1 phase2 phase3 scaffold-central \
-                   flash-blinky flash-peripheral verify clean; do
+          for t in help init setup scaffold-central \
+                   flash-blinky flash-peripheral capture open-central verify clean; do
             echo "$db" | grep -q "^$t:" || { echo "未定義ターゲット: $t"; exit 1; }
           done
 
-      - name: .PHONY にフェーズが含まれる
+      - name: .PHONY に全ターゲットが含まれる
         run: |
           phony="$(grep -A2 '^\.PHONY:' Makefile | tr '\\\n' ' ')"
-          for t in help init setup phase1 phase2 phase3 scaffold-central \
-                   flash-blinky flash-peripheral verify clean; do
+          for t in help init setup scaffold-central \
+                   flash-blinky flash-peripheral capture open-central verify clean; do
             echo "$phony" | grep -qw "$t" || { echo ".PHONY 欠落: $t"; exit 1; }
           done
 

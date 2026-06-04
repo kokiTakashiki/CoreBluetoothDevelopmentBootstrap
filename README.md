@@ -34,15 +34,23 @@ CoreBluetoothDevelopmentBootstrap/   ← 本リポジトリ（オーケストレ
 
 ## 使い方
 
+人間が叩く**プレイグラウンド型**のインターフェース。`make setup` で 3 つの検証環境を一度に組み上げ、あとは実機をつないで 4 つのコマンドを**順不同・何度でも**叩いて試す。
+
 ```sh
 git clone --recurse-submodules https://github.com/kokiTakashiki/CoreBluetoothDevelopmentBootstrap.git
 cd CoreBluetoothDevelopmentBootstrap
 # 既にクローン済みなら: make init（= git submodule update --init --recursive）
 
-make setup    # ソフトウェア環境構築（実機不要 / 子へ委譲。NCS 導入＋ peripheral_uart ビルド）
-make phase1   # Phase 1: 開発キット単体（blinky→LED 確認→peripheral_uart）
-make phase2   # Phase 2: プロトコルアナライザ運用（Sniffer extcap＋FW 書き込み）
-make phase3   # Phase 3: Xcode で Central 最小実装（足場生成＋手順案内）
+# 構築（一度・冪等・実機/GUI 不要）
+make setup            # 3 つの検証環境を全部組み上げる
+                      #   = ツール導入 + NCS 取得 + blinky/peripheral_uart ビルド
+                      #     + Sniffer extcap 配置 + Xcode Central プロジェクト生成
+
+# プレイグラウンド（実機をつないで、好きなものを試す）
+make flash-blinky     # ① 開発キット: blinky を焼いて LED 点滅を見る
+make flash-peripheral # ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
+make capture          # ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
+make open-central     # ③ Central: Xcode プロジェクトを開いてアプリを動かす
 ```
 
 ## 3 フェーズ
@@ -57,17 +65,18 @@ make phase3   # Phase 3: Xcode で Central 最小実装（足場生成＋手順�
 
 ## コマンド一覧
 
-| コマンド | 説明 |
-| --- | --- |
-| `make` | ターゲット一覧（help） |
-| `make init` | submodule を取得・更新 |
-| `make setup` | ソフトウェア環境構築（実機不要 / 子へ委譲） |
-| `make phase1` | Phase 1: blinky→確認→peripheral_uart |
-| `make flash-blinky` / `make flash-peripheral` | Phase 1 の個別書き込み |
-| `make phase2` | Phase 2: Sniffer extcap＋ドングル FW |
-| `make phase3` / `make scaffold-central` | Phase 3: Central 足場生成＋案内 |
-| `make verify` | 実機検査（子へ委譲 / 読み取り専用＋[y/N]書込確認） |
-| `make clean` | ビルド成果物を削除 |
+| 区分 | コマンド | 説明 |
+| --- | --- | --- |
+| 構築 | `make setup` | 3 つの検証環境を全部組み上げる（実機/GUI 不要・冪等）。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
+| プレイグラウンド | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
+| プレイグラウンド | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
+| プレイグラウンド | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| プレイグラウンド | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
+| その他 | `make` | ターゲット一覧（help）。 |
+| その他 | `make init` | submodule を取得・更新（`make setup` が内部で実行）。 |
+| その他 | `make scaffold-central` | Central の Xcode プロジェクトのみ生成（`make setup` が内部で実行）。 |
+| その他 | `make verify` | 機械検査（子へ委譲 / 読み取り専用＋[y/N]書込確認）。 |
+| その他 | `make clean` | ビルド成果物を削除（central プロジェクトは残す）。 |
 
 子（submodule）の詳細なターゲット（`flash-dk` / `install-sniffer` / `flash-sniffer-dongle` 等）は [`external/nrf52840-ble-debug-bootstrap`](https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap) の README を参照。
 

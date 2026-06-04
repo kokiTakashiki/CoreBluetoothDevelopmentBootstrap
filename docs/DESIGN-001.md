@@ -202,56 +202,56 @@ sequenceDiagram
 
 **iOSAppTemplate の扱い（設計判断）:** テンプレートは「出発点」であり、取り込んだ後に開発者が改変して所有する。したがって submodule（追跡し続ける依存）としては取り込まず、`scaffold-central` で `central/` 配下に展開して **git 履歴を切り離す**（degit 相当）。生成物は `.gitignore` で除外する。詳細は[意思決定ログ D-7](#意思決定ログ)。
 
-## 5. Make ターゲット設計（親）
+## 5. Make ターゲット設計（親）— プレイグラウンド型インターフェース
 
-親の Makefile は、子へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲することを基本とする。子が持つ冪等性・関心分離（setup / deploy / verify）をそのまま継承し、親は **フェーズという語彙**を被せる。
+本ツールは人間が対話的に使うことを前提に、`make` インターフェースを **「構築」と「プレイグラウンド」の二層**で設計する（[意思決定ログ D-10](#意思決定ログ)）。最重要の設計対象はこの `make` インターフェースそのものである。
+
+- **構築（`make setup`）** — 3 つの検証環境を**一度に・冪等に・実機/GUI なしで**全部組み上げる。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成までを含む。再実行は同一状態へ収束する。
+- **プレイグラウンド（動詞＋対象の 4 コマンド）** — 構築済みの環境を、実機をつないで**順不同・何度でも**動かす。各コマンドは「焼く／開く」という実機・GUI の動作だけを担い、ビルドは setup 済みのため速い。
+
+親は子へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲し、子の冪等性をそのまま継承する（D-8）。実機書き込みと GUI 起動は `setup` に一切含めない（それはプレイグラウンド側の責務）。
 
 ### 5.1 ターゲット一覧
 
-| ターゲット | 依存 / 委譲先 | 責務 |
-| --- | --- | --- |
-| `help` | — | **既定ゴール。** 各ターゲットの `## 注記` から一覧を自動生成。副作用なし（子の `help` 慣習を踏襲）。 |
-| `init` | — | `git submodule update --init --recursive`。submodule 未取得なら取得、取得済みなら何もしない（冪等）。 |
-| `setup` | `init` → 子 `setup` | 実機不要のソフト工程。子の `check-os install-tools build-firmware`（NCS 導入＋ peripheral_uart ビルド）を委譲実行。 |
-| `phase1` | `init` → 子 `flash-dk`（blinky 上書き）→ 子 `flash-dk`（peripheral_uart） | Phase 1。blinky 書き込み → peripheral_uart 書き込み。書き込み後に nRF Connect for Mobile での確認手順を案内表示。 |
-| `phase2` | `init` → 子 `install-sniffer` → 子 `flash-sniffer-dongle` | Phase 2。Sniffer extcap 配置 → ドングルへ Sniffer FW 書き込み（子の [y/N] 確認を継承）。 |
-| `phase3` | `scaffold-central` | Phase 3。Central の足場を `central/` に用意し、実装・実行手順を案内表示。 |
-| `scaffold-central` | `init` | iOSAppTemplate を `central/<AppName>` に展開し git 履歴を切り離す。参照実装をコピー先として案内。既存時はスキップ（冪等）。 |
-| `verify` | 子 `verify` | 読み取り専用の検査。DK が広告しているか・Sniffer インタフェースが出ているかを子の `verify` に委譲（子側で [y/N] 確認つき）。 |
-| `clean` | 子 `clean` | ビルド成果物（`build/`・`build/blinky/`）を削除。導入済みツールや scaffold には干渉しない。 |
+| 区分 | ターゲット | 委譲先 / 動作 | 責務 |
+| --- | --- | --- | --- |
+| — | `help` | — | 既定ゴール。`## 注記`から一覧を自動生成。副作用なし。 |
+| 構築 | `init` | `git submodule update --init` | submodule の取得・更新（`setup` が内部で呼ぶ）。 |
+| 構築 | `setup` | 子 `setup` ＋ 子 `build-firmware`(blinky) ＋ 子 `install-sniffer` ＋ `scaffold-central` | **3 つの検証環境を全部組み上げる。** 実機/GUI 不要・冪等。 |
+| 構築 | `scaffold-central` | iOSAppTemplate を展開し履歴切離 | Central の Xcode プロジェクト生成（`setup` が内部で呼ぶ。既存ならスキップ）。 |
+| ① 開発キット | `flash-blinky` | 子 `flash-dk`（blinky 上書き） | blinky を焼いて LED 点滅を見る。 |
+| ① 開発キット | `flash-peripheral` | 子 `flash-dk` | peripheral_uart を焼く（nRF Connect で往復）。 |
+| ② アナライザ | `capture` | 子 `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| ③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
+| — | `verify` | 子 `verify` | 機械検査（読み取り専用＋[y/N]書込確認）。 |
+| — | `clean` | 子 `clean` ＋ 親 `build/` 削除 | ビルド成果物を削除（central プロジェクトは残す）。 |
 
-### 5.2 委譲と依存のグラフ
+### 5.2 構築とプレイグラウンドのグラフ
+
+`setup` が 4 つの構築ステップへ扇状に展開し、各プレイグラウンドコマンドは独立に子へ委譲する。
 
 ```mermaid
 graph TD
-    help["help（既定ゴール）"]
-    init["init（submodule 取得）"]
+    subgraph build["構築（make setup / 実機・GUI 不要・冪等）"]
+        setup["make setup"]
+        setup --> s1["子 setup<br/>ツール導入＋NCS＋peripheral_uart ビルド"]
+        setup --> s2["子 build-firmware<br/>blinky ビルド"]
+        setup --> s3["子 install-sniffer<br/>extcap 配置"]
+        setup --> s4["scaffold-central<br/>Xcode プロジェクト生成"]
+    end
 
-    setup --> init
-    setup -->|"make -C 子"| c_setup["子: setup"]
-
-    phase1 --> init
-    phase1 -->|"flash-dk（blinky 上書き）"| c_flash1["子: flash-dk"]
-    phase1 -->|"flash-dk（peripheral_uart）"| c_flash2["子: flash-dk"]
-
-    phase2 --> init
-    phase2 -->|"install-sniffer"| c_sniff["子: install-sniffer"]
-    phase2 -->|"flash-sniffer-dongle"| c_dongle["子: flash-sniffer-dongle"]
-
-    phase3 --> scaffold["scaffold-central"]
-    scaffold --> init
-
-    verify -->|"verify"| c_verify["子: verify"]
-    clean -->|"clean"| c_clean["子: clean"]
+    subgraph play["プレイグラウンド（実機をつないで試す）"]
+        fb["make flash-blinky"] --> p1["子 flash-dk（blinky）"]
+        fp["make flash-peripheral"] --> p2["子 flash-dk"]
+        cap["make capture"] --> p3["子 flash-sniffer-dongle → Wireshark 起動"]
+        oc["make open-central"] --> p4["open *.xcodeproj"]
+    end
 ```
 
-### 5.3 冪等性方針
+### 5.3 冪等性とプレイグラウンド性
 
-親も子と同じ「状態検査つきの冪等な単位」を貫く。
-
-- `init` — submodule が既にチェックアウト済みなら `git submodule update` は no-op に収束。
-- `setup` / `phase1` / `phase2` — 実体は子ターゲットの委譲であり、冪等性は子が担保する（FW 再書き込みは結果状態を変えないため実質冪等）。
-- `scaffold-central` — `central/<AppName>` が既に存在すればスキップし、テンプレートを上書きしない（開発者の改変を破壊しない）。
+- `setup` の各ステップは状態検査つきで冪等（子のガード＋`scaffold-central` の存在検査）。再実行は同一状態へ収束する。
+- プレイグラウンドの各コマンドは**独立・再入可能**。FW 再書き込みは結果状態を変えないため実質冪等。`open-central` は何度開いてもよい。`scaffold-central` は `central/<AppName>` が既にあればスキップし、開発者の改変を破壊しない。
 
 ## 6. 機械検証と人間検証の境界
 
@@ -277,7 +277,7 @@ graph TD
    - 親から移設対象ファイルを削除。
    - `git submodule add https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap.git external/nrf52840-ble-debug-bootstrap`。
 3. **親の新規実装**
-   - 親 `Makefile`（3 フェーズ・オーケストレータ）を追加。
+   - 親 `Makefile`（構築＋プレイグラウンド型インターフェース。`setup` ＋ `flash-blinky`/`flash-peripheral`/`capture`/`open-central`）を追加。
    - `central/reference/` に Central 参照実装を配置、`scaffold-central` を実装。
    - 親 README を「Core Bluetooth 検証環境」として書き直し。
    - 親 `docs/DESIGN-001.md`（本書）を確定。
@@ -302,3 +302,4 @@ graph TD
 | D-7 | iOSAppTemplate は submodule にせず、`scaffold-central` で `central/` に展開して git 履歴を切り離す（生成物は .gitignore） | テンプレートは改変して所有する「出発点」であり、追跡し続ける依存ではない。submodule 化すると改変が上流追跡と衝突する。degit 相当の切り離しが適切。 |
 | D-8 | 親は子へ `$(MAKE) -C` で委譲し、子の冪等性・関心分離（setup/deploy/verify）をそのまま継承する | 子は冪等性と書き込み/検証分離を作り込み済み。親はそれを再発明せず「フェーズ」の語彙を被せるだけにとどめ、二重実装と挙動のずれを防ぐ。 |
 | D-9 | 機械検証（CI が回す dry-run パース・submodule 整合）と人間確認（LED・GUI・実機実行）を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
+| D-10 | `make` インターフェースを「**構築**（`setup` が 3 環境を全部・冪等に組み上げ）＋**プレイグラウンド**（動詞＋対象の 4 コマンド `flash-blinky` / `flash-peripheral` / `capture` / `open-central` で à la carte に動かす）」の二層にする | 本ツールは人間が対話的に使うプレイグラウンドであり、最重要の設計対象は `make` インターフェースそのものである。当初案は `phase1/2/3` が「組み上げ（ビルド・配置・生成）」と「実機で動かす（書き込み・GUI 起動）」を 1 ターゲットに混在させ、`setup` も 3 環境のうち 1 つ（peripheral_uart）しか組み上げていなかった。ユーザー指摘により、`setup` で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に組み上げ**、以降は 4 コマンドを**順不同・何度でも**叩いて試せる形へ再設計。粒度は細分化（開発キットを blinky と peripheral に分割）、命名は動作が一目で分かる**動詞＋対象**とした。種別: UX / インターフェース設計（ユーザー指摘・承認済み）。 |

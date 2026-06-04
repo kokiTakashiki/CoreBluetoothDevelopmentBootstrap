@@ -14,9 +14,11 @@ DESIGN-001 Phase 3 の足場。iOS Central（検証主体）をここに用意�
 ## 手順
 
 ```sh
-make scaffold-central   # iOSAppTemplate を central/BLECentralSample へ展開し git 履歴を切離
-make phase3             # 上記＋実装・実行手順の案内
+make setup         # 3 つの検証環境を組み上げる（この足場生成も含む）
+make open-central  # central/BLECentralSample の Xcode プロジェクトを開く
 ```
+
+> 足場のみを生成したいときは `make scaffold-central`。
 
 以降は人手（Apple の署名フローは Make の冪等性を保証できないため自動化対象外。D-6）:
 

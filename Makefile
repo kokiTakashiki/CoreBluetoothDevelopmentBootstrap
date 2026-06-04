@@ -1,16 +1,21 @@
 # ============================================================
-# Core Bluetooth（BLE）検証環境 オーケストレータ Makefile
+# Core Bluetooth（BLE）検証環境 Makefile
 #
-# DESIGN-001（docs/DESIGN-001.md）に基づく 3 フェーズの自動化レイヤ。
-#   Phase 1: 開発キット単体の動作確認（DUT を確定）
-#   Phase 2: プロトコルアナライザ運用の確立（観測手段を確定）
-#   Phase 3: Xcode で Central 最小実装（検証主体を確定）
+# 人間が叩くプレイグラウンド型インターフェース。
 #
-# nRF ハード固有の工程（NCS 導入 / FW ビルド / 書き込み / Sniffer）は
-# submodule external/nrf52840-ble-debug-bootstrap へ委譲する。本 Makefile は
-# 「フェーズ」の語彙を被せ、子の冪等性・関心分離をそのまま継承する（D-8）。
+#   構築（一度・冪等・実機/GUI 不要）
+#     make setup            3 つの検証環境を全部組み上げる
 #
-# 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（D-6）。
+#   プレイグラウンド（setup 後、実機をつないで好きに試す）
+#     make flash-blinky     ① 開発キット: blinky を焼いて LED 点滅を見る
+#     make flash-peripheral ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
+#     make capture          ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
+#     make open-central     ③ Central: Xcode プロジェクトを開いてアプリを動かす
+#
+# nRF ハード固有の工程は submodule external/nrf52840-ble-debug-bootstrap へ委譲する。
+# 設計の詳細は docs/DESIGN-001.md（Mermaid 図つき）を参照。
+#
+# 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（対象外）。
 # ============================================================
 
 SHELL := /bin/bash
@@ -18,123 +23,119 @@ SHELL := /bin/bash
 # --- submodule（nRF52840 製 BLE デバッグ環境） ---------------
 SUBMODULE_DIR ?= external/nrf52840-ble-debug-bootstrap
 
-# --- Phase 1: blinky を子の flash-dk へ変数上書きで流す（D-5） ---
+# --- blinky を子の build/flash へ変数上書きで流す（DESIGN-001 D-5） ---
 # 子 Makefile の SAMPLE_DIR / BUILD_DIR を上書きするだけで、子を無改変のまま
-# blinky（Zephyr 標準サンプル）をビルド・書き込みできる。ビルド成果物は
-# submodule の外（親の build/）へ出し、submodule を汚さない。
+# blinky（Zephyr 標準サンプル）をビルド・書き込みできる。成果物は submodule の
+# 外（親の build/）へ出し submodule を汚さない。peripheral_uart は子の既定で扱う。
 NCS_VERSION      ?= v2.6.1
 NCS_BASE         ?= $(HOME)/ncs/$(NCS_VERSION)
 BLINKY_SAMPLE    ?= $(NCS_BASE)/zephyr/samples/basic/blinky
 BLINKY_BUILD_DIR ?= $(CURDIR)/build/blinky
 
-# --- Phase 3: Central の足場（iOSAppTemplate を展開して履歴を切離。D-7） ---
+# --- Central の Xcode プロジェクト（iOSAppTemplate を展開し履歴を切離。D-7） ---
 CENTRAL_DIR  ?= central
 APP_NAME     ?= BLECentralSample
 TEMPLATE_URL ?= https://github.com/koki-mobile-studio/iOSAppTemplate.git
 
 # ============================================================
-# 既定ゴール: help（副作用なし）。導入・書き込みは明示ターゲットに限定する。
+# 既定ゴール: help（副作用なし）
 # ============================================================
 .DEFAULT_GOAL := help
 
 help: ## このヘルプ（ターゲット一覧）を表示
-	@echo "Core Bluetooth（BLE）検証環境 — 3 フェーズ・オーケストレータ"
-	@echo "使い方: make <target>  (例: make setup && make phase1)"
+	@echo "Core Bluetooth（BLE）検証環境 — プレイグラウンド"
 	@echo ""
-	@echo "ターゲット:"
+	@echo "  1. make setup で 3 つの検証環境を全部組み上げる（実機/GUI 不要・冪等）"
+	@echo "  2. 実機をつないで、下のプレイグラウンドを順不同・何度でも叩く"
+	@echo ""
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN{FS=":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+		| awk 'BEGIN{FS=":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
+# ============================================================
+# 構築（冪等・実機/GUI 不要）
+#   setup が 3 つの検証環境を全部組み上げる:
+#     - ツール導入＋NCS 取得＋peripheral_uart ビルド（子の setup）
+#     - blinky ビルド
+#     - Sniffer extcap 配置（子の install-sniffer）
+#     - Xcode Central プロジェクト生成（scaffold-central）
+#   実機書き込みと GUI 起動は一切含めない（それはプレイグラウンド側）。
+# ============================================================
 init: ## submodule（子）を取得・更新
 	@git submodule update --init --recursive
 	@echo "==> init: submodule 準備完了 ($(SUBMODULE_DIR))"
 
-setup: init ## ソフトウェア環境構築（実機不要 / 子へ委譲）
-	@echo "==> setup: 子の setup（NCS 導入＋ peripheral_uart ビルド）を実行します"
+setup: init ## 3 つの検証環境を全部組み上げる（冪等・実機/GUI 不要）
+	@echo "==> setup: 3 つの検証環境を組み上げます（実機不要・再実行は冪等）"
+	@echo "--> [1/4] ツール導入＋NCS 取得＋peripheral_uart ビルド"
 	$(MAKE) -C $(SUBMODULE_DIR) setup
-
-# ============================================================
-# Phase 1: 開発キット単体の動作確認
-#   blinky を書き込み LED 点滅を確認 → peripheral_uart を書き込み。
-#   blinky の確認を取れるよう、2 つの書き込みの間に人手確認の一時停止を挟む
-#   （非対話時は自動でスキップ）。
-# ============================================================
-phase1: init ## Phase 1: 開発キット単体（blinky→確認→peripheral_uart）
-	@echo "==> Phase 1: 開発キット単体の動作確認"
-	@echo "--> [1/2] blinky を書き込みます（Nordic Getting Started）"
-	$(MAKE) -C $(SUBMODULE_DIR) flash-dk SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
-	@printf "DK の LED1 が点滅していることを確認してください。確認できたら Enter（中止は Ctrl-C）: "; \
-		read -r _ </dev/tty 2>/dev/null || echo "（非対話: 確認をスキップして続行）"
-	@echo "--> [2/2] peripheral_uart を書き込みます"
-	$(MAKE) -C $(SUBMODULE_DIR) flash-dk
-	@echo ""
-	@echo "次の人手確認で Phase 1 を完了とします:"
-	@echo "  - iPhone の nRF Connect for Mobile から 'Nordic_UART_Service'(NUS) へ接続"
-	@echo "  - RX/TX で文字列が往復することを確認"
-
-flash-blinky: init ## blinky のみ書き込み（LED 点滅確認用）
-	$(MAKE) -C $(SUBMODULE_DIR) flash-dk SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
-
-flash-peripheral: init ## peripheral_uart のみ書き込み
-	$(MAKE) -C $(SUBMODULE_DIR) flash-dk
-
-# ============================================================
-# Phase 2: プロトコルアナライザ運用の確立
-#   Sniffer extcap を配置し、ドングルへ Sniffer FW を書き込む。
-#   ドングルの Open Bootloader 確認（[y/N]）は子の flash-sniffer-dongle が行う。
-# ============================================================
-phase2: init ## Phase 2: プロトコルアナライザ運用（Sniffer extcap＋FW）
-	@echo "==> Phase 2: プロトコルアナライザ運用の確立"
-	@echo "--> extcap プラグインを配置します"
+	@echo "--> [2/4] blinky ビルド"
+	$(MAKE) -C $(SUBMODULE_DIR) build-firmware SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
+	@echo "--> [3/4] Sniffer extcap 配置"
 	$(MAKE) -C $(SUBMODULE_DIR) install-sniffer
-	@echo "--> ドングルへ Sniffer FW を書き込みます（Open Bootloader 確認あり）"
-	$(MAKE) -C $(SUBMODULE_DIR) flash-sniffer-dongle
+	@echo "--> [4/4] Xcode Central プロジェクト生成"
+	@$(MAKE) --no-print-directory scaffold-central
 	@echo ""
-	@echo "次の人手確認で Phase 2 を完了とします:"
-	@echo "  - Wireshark のインタフェース一覧に 'nRF Sniffer for Bluetooth LE' が出現"
-	@echo "  - DK↔iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery を観測"
+	@echo "==> setup 完了。実機をつないで以下を試せます:"
+	@echo "    make flash-blinky / make flash-peripheral / make capture / make open-central"
 
-# ============================================================
-# Phase 3: Xcode で Central 最小実装
-#   足場の生成（iOSAppTemplate 展開＋履歴切離）までを自動化し、Xcode での
-#   実装・ビルド・実行は人手（D-6）。
-# ============================================================
-phase3: scaffold-central ## Phase 3: Xcode Central（足場生成＋手順案内）
-	@echo "==> Phase 3: Xcode で Central 最小実装"
-	@echo "足場     : $(CENTRAL_DIR)/$(APP_NAME)（iOSAppTemplate 由来 / git 履歴は切離済み）"
-	@echo "参照実装 : $(CENTRAL_DIR)/reference/BLECentral.swift"
-	@echo ""
-	@echo "手順（人手）:"
-	@echo "  1. $(CENTRAL_DIR)/$(APP_NAME) を Xcode で開く"
-	@echo "  2. reference/BLECentral.swift を組み込み、CBCentralManager を実装"
-	@echo "  3. scan→connect→discoverServices→discoverCharacteristics→readValue/setNotifyValue を実行"
-	@echo "  4. 接続先は Phase 1 の peripheral_uart 搭載 DK。同じ通信を Wireshark でも観測"
-
-scaffold-central: init ## Central の足場を生成（iOSAppTemplate 展開＋履歴切離）
+scaffold-central: ## Central の Xcode プロジェクトを生成（iOSAppTemplate 展開＋履歴切離）
 	@if [ -d "$(CENTRAL_DIR)/$(APP_NAME)" ]; then \
-		echo "    [skip] 足場は既にあります: $(CENTRAL_DIR)/$(APP_NAME)"; \
+		echo "    [skip] $(CENTRAL_DIR)/$(APP_NAME) は生成済み"; \
 	else \
-		echo "    [scaffold] $(TEMPLATE_URL) を $(CENTRAL_DIR)/$(APP_NAME) へ展開します"; \
+		echo "    [scaffold] $(TEMPLATE_URL) → $(CENTRAL_DIR)/$(APP_NAME)"; \
 		if git clone --depth 1 "$(TEMPLATE_URL)" "$(CENTRAL_DIR)/$(APP_NAME)"; then \
 			rm -rf "$(CENTRAL_DIR)/$(APP_NAME)/.git"; \
-			echo "    [done] git 履歴を切り離しました（degit 相当）。reference/ を組み込んでください。"; \
+			echo "    [done] git 履歴を切離。$(CENTRAL_DIR)/reference/BLECentral.swift を組み込んでください。"; \
 		else \
-			echo "ERROR(scaffold-central): テンプレートの取得に失敗しました: $(TEMPLATE_URL)" >&2; \
+			echo "ERROR(scaffold-central): テンプレート取得に失敗しました: $(TEMPLATE_URL)" >&2; \
 			echo "  手動で $(CENTRAL_DIR)/$(APP_NAME) に新規 Xcode プロジェクトを用意してください。" >&2; \
 			exit 1; \
 		fi; \
 	fi
 
 # ============================================================
+# プレイグラウンド（setup 後、実機をつないで試す）
+#   各コマンドは「焼く／開く」という実機・GUI の動作だけを担う。ビルドは
+#   setup 済みのため速い（未 setup でも子の依存が必要分だけ補う）。
+# ============================================================
+flash-blinky: init ## ① 開発キット: blinky を焼いて LED 点滅を見る
+	@echo "==> flash-blinky: blinky を書き込みます（DK の LED1 点滅を確認）"
+	$(MAKE) -C $(SUBMODULE_DIR) flash-dk SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
+
+flash-peripheral: init ## ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
+	@echo "==> flash-peripheral: peripheral_uart を書き込みます"
+	$(MAKE) -C $(SUBMODULE_DIR) flash-dk
+	@echo "    iPhone の nRF Connect for Mobile から 'Nordic_UART_Service'(NUS) に接続し、"
+	@echo "    RX/TX で文字列が往復することを確認してください。"
+
+capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
+	@echo "==> capture: ドングルへ Sniffer FW を書き込みます（Open Bootloader 確認あり）"
+	$(MAKE) -C $(SUBMODULE_DIR) flash-sniffer-dongle
+	@echo "==> Wireshark を起動します。'nRF Sniffer for Bluetooth LE' を選び、"
+	@echo "    DK↔iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery を観測してください。"
+	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
+
+open-central: init ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
+	@proj="$$(ls -d $(CENTRAL_DIR)/$(APP_NAME)/*.xcworkspace $(CENTRAL_DIR)/$(APP_NAME)/*.xcodeproj 2>/dev/null | head -n1 || true)"; \
+	if [ -z "$$proj" ]; then \
+		echo "ERROR(open-central): Xcode プロジェクトが見つかりません。先に 'make setup' を実行してください。" >&2; \
+		exit 1; \
+	fi; \
+	echo "==> open-central: $$proj を開きます"; \
+	echo "    $(CENTRAL_DIR)/reference/BLECentral.swift を組み込み、Phase 1 の DK へ"; \
+	echo "    scan→connect→discoverServices→discoverCharacteristics→readValue/setNotifyValue を実行してください。"; \
+	open "$$proj"
+
+# ============================================================
 # 検査 / 後始末
 # ============================================================
-verify: init ## 実機検査（子へ委譲 / 読み取り専用＋[y/N]書込確認）
+verify: init ## 機械検査（子へ委譲 / 読み取り専用＋[y/N]書込確認）
 	$(MAKE) -C $(SUBMODULE_DIR) verify
 
-clean: ## ビルド成果物を削除（子のビルド＋blinky ビルド）
+clean: ## ビルド成果物を削除（central プロジェクトは残す）
 	-@$(MAKE) -C $(SUBMODULE_DIR) clean
 	@rm -rf "$(CURDIR)/build"
 	@echo "==> clean: 完了"
 
-.PHONY: help init setup phase1 flash-blinky flash-peripheral phase2 phase3 \
-        scaffold-central verify clean
+.PHONY: help init setup scaffold-central flash-blinky flash-peripheral \
+        capture open-central verify clean
