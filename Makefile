@@ -64,7 +64,7 @@ init: ## submodule（子）を取得・更新
 	@git submodule update --init --recursive
 	@echo "==> init: submodule 準備完了 ($(SUBMODULE_DIR))"
 
-setup: init ## 3 つの検証環境を全部組み上げる（冪等・実機/GUI 不要）
+setup: init ## 3 つの検証環境を全部組み上げる
 	@echo "==> setup: 3 つの検証環境を組み上げます（実機不要・再実行は冪等）"
 	@echo "--> [1/4] ツール導入＋NCS 取得＋peripheral_uart ビルド"
 	$(MAKE) -C $(SUBMODULE_DIR) setup
