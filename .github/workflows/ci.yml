@@ -24,7 +24,7 @@ jobs:
       - name: 既定ゴール = help（副作用なし）
         run: |
           make | tee /tmp/default.txt
-          grep -q "3 フェーズ・オーケストレータ" /tmp/default.txt \
+          grep -q "検証環境 — プレイグラウンド" /tmp/default.txt \
             || { echo "既定ゴールが help でない"; exit 1; }
 
       - name: 構築/プレイグラウンドのターゲットが定義済み
