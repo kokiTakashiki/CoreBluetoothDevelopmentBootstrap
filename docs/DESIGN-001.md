@@ -29,11 +29,26 @@ iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が�
 2. **観測手段** — 通信を可視化するプロトコルアナライザ（Sniffer）
 3. **検証主体** — 自分が書く Core Bluetooth の Central 実装
 
-本リポジトリは、この三者を `make` でまとめて用意する。nRF ハード固有の立ち上げ（1 と 2）は独立リポジトリ（submodule）に閉じ、このリポジトリは三者をまとめる役（3 フェーズ）と Central 実装の足場を担う。狙いは次の三点。
+この三者は次の図で示す関係にある。Central（③）が Peripheral（①）へ BLE で接続して通信し、その電波を Sniffer（②）が傍受して可視化する。
 
-- **名実の一致** — 「Core Bluetooth 検証環境」を名乗るにふさわしい、Central 実装までを含む全体を提供する。
-- **関心の分離** — nRF ハードの面倒（NCS ツールチェーン・ファームウェアビルド・書き込み・Sniffer）は submodule に閉じ、独立して再利用・進化できる。
-- **置き換え可能性** — 将来 Peripheral を別ハード（別ボード／市販の BLE デバイス）に差し替えても、このリポジトリ側の 3 フェーズ構造は不変。
+```mermaid
+flowchart LR
+    central["③ 検証主体<br/>自作 Central（iOS アプリ）"]
+    peripheral["① 被検証側（DUT）<br/>BLE Peripheral"]
+    sniffer["② 観測手段<br/>Sniffer ＋ Wireshark"]
+
+    central <==>|"BLE で接続・通信"| peripheral
+    central -.->|"電波を捕捉"| sniffer
+    peripheral -.->|"電波を捕捉"| sniffer
+```
+
+本リポジトリでは、この三者を `make` でまとめて用意する。nRF ハード固有の立ち上げ（1 と 2）は独立リポジトリ（submodule）に閉じ、このリポジトリは三者をまとめる役（3 フェーズ）と Central 実装の足場を担う。狙いは次の表で示す三点。
+
+| 狙い | 内容 |
+| --- | --- |
+| **名実の一致** | 「Core Bluetooth 検証環境」を名乗るにふさわしい、Central 実装までを含む全体を提供する。 |
+| **関心の分離** | nRF ハードの面倒（NCS ツールチェーン・ファームウェアビルド・書き込み・Sniffer）は submodule に閉じ、独立して再利用・進化できる。 |
+| **置き換え可能性** | 将来 Peripheral を別ハード（別ボード／市販の BLE デバイス）に差し替えても、このリポジトリ側の 3 フェーズ構造は不変。 |
 
 ## 2. 全体アーキテクチャ
 
