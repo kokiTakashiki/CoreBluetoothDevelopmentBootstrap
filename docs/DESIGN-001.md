@@ -48,7 +48,7 @@ flowchart LR
     end
 ```
 
-**図 1**: Central（③）が Peripheral（①）へ BLE で接続して通信し、その電波を Sniffer（②）が傍受して可視化する。
+<p align="center"><sub>図 1 — Central（③）が Peripheral（①）へ BLE で接続して通信し、その電波を Sniffer（②）が傍受して可視化する。</sub></p>
 
 本リポジトリでは、この三者を `make` でまとめて用意する。nRF ハード固有の立ち上げ（1 と 2）は独立リポジトリ（submodule）に閉じ、このリポジトリは三者をまとめる役（3 フェーズ）と Central 実装の足場を担う。狙いは次の表で示す三点。
 
