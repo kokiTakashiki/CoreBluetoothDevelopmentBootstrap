@@ -1,11 +1,11 @@
 # XcodeGen のプロジェクト定義（このファイルが Xcode プロジェクトの source of truth）。
-# `xcodegen generate` で BLECentralSample.xcodeproj を生成する（.xcodeproj は .gitignore）。
+# `xcodegen generate` で CoreBluetoothCentralGuide.xcodeproj を生成する（.xcodeproj は .gitignore）。
 # 雛形は iOSAppTemplate(Genesis) で一度生成したものを固定したもの。実行時に
 # iOSAppTemplate へは依存しない（テンプレの破壊的変更の影響を受けない。DESIGN-001 D-7）。
-name: BLECentralSample
+name: CoreBluetoothCentralGuide
 
 options:
-  bundleIdPrefix: com.example.ble
+  bundleIdPrefix: com.example
   developmentLanguage: ja
   knownRegions: [ja]
   deploymentTarget:
@@ -17,20 +17,20 @@ settings:
     SWIFT_VERSION: "5.10"
     TARGETED_DEVICE_FAMILY: "1,2"
 targets:
-  BLECentralSample:
+  CoreBluetoothCentralGuide:
     type: application
     platform: iOS
     sources:
-      - path: BLECentralSample
+      - path: CoreBluetoothCentralGuide
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.ble.BLECentralSample
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.CoreBluetoothCentralGuide
         DEVELOPMENT_TEAM: ""
         CODE_SIGN_STYLE: Automatic
     info:
-      path: BLECentralSample/Info.plist
+      path: CoreBluetoothCentralGuide/Info.plist
       properties:
-        CFBundleDisplayName: BLECentralSample
+        CFBundleDisplayName: CoreBluetoothCentralGuide
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:

@@ -3,11 +3,11 @@
 
 # Central: project.yml と Swift ソースは追跡する。
 # xcodegen が生成する成果物（.xcodeproj・Info.plist）とビルド成果物だけ無視する。
-/central/BLECentralSample/*.xcodeproj/
-/central/BLECentralSample/*.xcworkspace/
-/central/BLECentralSample/BLECentralSample/Info.plist
-/central/BLECentralSample/build/
-/central/BLECentralSample/DerivedData/
+/central/CoreBluetoothCentralGuide/*.xcodeproj/
+/central/CoreBluetoothCentralGuide/*.xcworkspace/
+/central/CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/Info.plist
+/central/CoreBluetoothCentralGuide/build/
+/central/CoreBluetoothCentralGuide/DerivedData/
 
 # macOS
 .DS_Store

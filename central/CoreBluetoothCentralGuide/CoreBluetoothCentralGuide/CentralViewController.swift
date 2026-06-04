@@ -1,6 +1,6 @@
 //
 //  CentralViewController.swift
-//  BLECentralSample
+//  CoreBluetoothCentralGuide
 //
 //  Core Bluetooth の Central を最小で実装したガイド付き教材。
 //  コードは「Central がたどる手順」の順に上から下へ並べてある。各手順の

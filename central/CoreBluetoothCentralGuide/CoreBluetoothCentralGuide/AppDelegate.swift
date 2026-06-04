@@ -1,6 +1,6 @@
 //
 //  AppDelegate.swift
-//  BLECentralSample
+//  CoreBluetoothCentralGuide
 //
 
 import UIKit

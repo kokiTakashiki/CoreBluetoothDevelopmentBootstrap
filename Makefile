@@ -35,7 +35,7 @@ BLINKY_BUILD_DIR ?= $(CURDIR)/build/blinky
 # project.yml と Swift ソースはこのリポジトリに固定。実行時に iOSAppTemplate へ
 # 依存しない（テンプレの破壊的変更の影響を受けない）。.xcodeproj は生成物。
 CENTRAL_DIR ?= central
-APP_NAME    ?= BLECentralSample
+APP_NAME    ?= CoreBluetoothCentralGuide
 
 # ============================================================
 # 既定ゴール: help

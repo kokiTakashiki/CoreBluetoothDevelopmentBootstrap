@@ -6,12 +6,12 @@ DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこ�
 
 | パス | 役割 | git 追跡 |
 | --- | --- | --- |
-| `BLECentralSample/project.yml` | XcodeGen のプロジェクト定義（`.xcodeproj` の source of truth）。 | ○ |
-| `BLECentralSample/BLECentralSample/CentralViewController.swift` | Core Bluetooth の Central を手順順に並べたガイド付き教材。scan→connect→discover→notify/write を 1 枚に実装し、各手順をコメントで解説。受信バイト列を画面に出す。 | ○ |
+| `CoreBluetoothCentralGuide/project.yml` | XcodeGen のプロジェクト定義（`.xcodeproj` の source of truth）。 | ○ |
+| `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/CentralViewController.swift` | Core Bluetooth の Central を手順順に並べたガイド付き教材。scan→connect→discover→notify/write を 1 枚に実装し、各手順をコメントで解説。受信バイト列を画面に出す。 | ○ |
 | `GUIDE.md` | 上記コードを読みながら Core Bluetooth の設計思想を学ぶプログラミングガイド。 | ○ |
-| `BLECentralSample/BLECentralSample/{AppDelegate,SceneDelegate}.swift` | UIKit のアプリ起動（雛形）。 | ○ |
-| `BLECentralSample/BLECentralSample.xcodeproj` | `xcodegen generate` の生成物。 | ×（`.gitignore`） |
-| `BLECentralSample/BLECentralSample/Info.plist` | XcodeGen が `project.yml` の `info:` から生成。 | ×（`.gitignore`） |
+| `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/{AppDelegate,SceneDelegate}.swift` | UIKit のアプリ起動（雛形）。 | ○ |
+| `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide.xcodeproj` | `xcodegen generate` の生成物。 | ×（`.gitignore`） |
+| `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/Info.plist` | XcodeGen が `project.yml` の `info:` から生成。 | ×（`.gitignore`） |
 
 雛形は iOSAppTemplate(Genesis) で一度生成したものを固定したもの。以後 iOSAppTemplate は不要で、`make` は `xcodegen generate` するだけ。
 
@@ -22,7 +22,7 @@ make setup          # 検証環境一式を用意（この .xcodeproj 生成も�
 make open-central   # xcodegen で生成し、Xcode で開く
 ```
 
-> アプリ名を変えるときは `BLECentralSample/project.yml` の `name`・ディレクトリ名と、Makefile の `APP_NAME` を合わせる。
+> アプリ名を変えるときは `CoreBluetoothCentralGuide/project.yml` の `name`・ディレクトリ名と、Makefile の `APP_NAME` を合わせる。
 
 ## 以降の実装
 

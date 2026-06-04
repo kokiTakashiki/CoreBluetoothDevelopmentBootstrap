@@ -192,9 +192,9 @@ CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
 │       └── .github/workflows/idempotency.yml
 ├── central/                              # Phase 3 用（Central のソースを同梱）
 │   ├── GUIDE.md                          #   Core Bluetooth 実装ガイド（教材）
-│   └── BLECentralSample/                 #   project.yml ＋ Swift ソース（commit）
+│   └── CoreBluetoothCentralGuide/                 #   project.yml ＋ Swift ソース（commit）
 │       ├── project.yml                   #     XcodeGen 定義（.xcodeproj の source of truth）
-│       └── BLECentralSample/*.swift      #     AppDelegate/SceneDelegate/CentralViewController
+│       └── CoreBluetoothCentralGuide/*.swift      #     AppDelegate/SceneDelegate/CentralViewController
 │           # .xcodeproj・Info.plist は xcodegen 生成・.gitignore
 └── .github/
     └── workflows/                        # このリポジトリの機械ゲート（parse-lint など）
