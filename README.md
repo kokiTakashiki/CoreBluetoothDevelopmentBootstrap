@@ -34,7 +34,7 @@ CoreBluetoothDevelopmentBootstrap/   ← このリポジトリ
 
 ## 使い方
 
-人間が手で叩く**二段階**のインターフェース。まず `make setup` で検証に必要なものを一度に用意し、あとは実機をつないで、この環境でできることを 4 つのコマンドで**順不同・何度でも**試す。
+**二段階**のインターフェース。まず `make setup` で検証に必要なものを一度に用意し、あとは実機をつないで、この環境でできることを 4 つのコマンドで**順不同・何度でも**試す。
 
 ```sh
 git clone --recurse-submodules https://github.com/kokiTakashiki/CoreBluetoothDevelopmentBootstrap.git

@@ -206,7 +206,7 @@ sequenceDiagram
 
 ## 5. Make ターゲット設計
 
-この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。本ツールは人間が手で叩いて使うものであり、この使い勝手こそが最重要の設計対象である（[意思決定ログ D-10](#意思決定ログ)）。
+この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。この使い勝手こそが最重要の設計対象である（[意思決定ログ D-10](#意思決定ログ)）。
 
 **準備は `make setup` の一回だけである。** `setup` は検証に必要なものを全部まとめて用意する。具体的には、ツール（nrfutil・Wireshark 等）の導入、nRF Connect SDK の取得、開発キットへ書き込む 2 種類のファームウェア（blinky と peripheral_uart）のビルド、Sniffer を Wireshark から使うためのプラグイン配置、そして Xcode の Central プロジェクトの生成までを含む。この準備には実機もマウス操作も要らず、パソコン上で完結する。何度実行しても同じ状態に行き着く（冪等）ため、途中で失敗しても、設定を変えても、`make setup` を打ち直せば済む。
 
@@ -312,4 +312,4 @@ graph TD
 | D-7 | Central アプリ（`project.yml` ＋ Swift ソース）をこのリポジトリに固定し、`.xcodeproj` だけを `xcodegen` で生成する。**`make` 実行時に iOSAppTemplate へは依存しない** | iOSAppTemplate は Genesis テンプレで、雛形（XcodeGen `project.yml` を含むアプリ一式）を生成する。当初案は `make` 実行のたびに iOSAppTemplate を clone して Genesis 生成していたが、**テンプレは破壊的に変更され得るため、実行時依存は壊れやすい**（ユーザー指摘）。そこで iOSAppTemplate で一度だけ雛形を生成し、その source of truth（`project.yml`・`AppDelegate`/`SceneDelegate`/`BLECentralViewController`・`BLECentral.swift`）をこのリポジトリに固定。以後 iOSAppTemplate を参照せず、`make generate-central` は同梱 `project.yml` を `xcodegen generate` するだけ。commit するのは `project.yml` と Swift ソース、生成物（`.xcodeproj`・`Info.plist`）は `.gitignore`。種別: 実装方針（ユーザー指摘・依存削減）。 |
 | D-8 | このリポジトリは submodule へ `$(MAKE) -C` で委譲し、submodule の冪等性・関心分離（setup/deploy/verify）をそのまま継承する | submodule は冪等性と書き込み/検証分離を作り込み済み。このリポジトリはそれを再発明せず、まとめて呼び出すだけにとどめ、二重実装と挙動のずれを防ぐ。 |
 | D-9 | 機械検証（CI が回す dry-run パース・submodule 整合）と人間確認（LED・GUI・実機実行）を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
-| D-10 | `make` インターフェースを「**準備（`make setup` 一回）＋この環境でできること（独立した 4 コマンド）**」の二段階にする | 本ツールは人間が手で叩いて使うものであり、最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が「準備（ビルド・配置・生成）」と「実機で動かす（書き込み・GUI 起動）」を 1 ターゲットに混在させ、`setup` も 3 環境のうち 1 つ（peripheral_uart）しか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: UX / インターフェース設計（ユーザー指摘・承認済み）。 |
+| D-10 | `make` インターフェースを「**準備（`make setup` 一回）＋この環境でできること（独立した 4 コマンド）**」の二段階にする | 最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が「準備（ビルド・配置・生成）」と「実機で動かす（書き込み・GUI 起動）」を 1 ターゲットに混在させ、`setup` も 3 環境のうち 1 つ（peripheral_uart）しか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: UX / インターフェース設計（ユーザー指摘・承認済み）。 |
