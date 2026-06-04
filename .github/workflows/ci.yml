@@ -24,10 +24,10 @@ jobs:
       - name: 既定ゴール = help（副作用なし）
         run: |
           make | tee /tmp/default.txt
-          grep -q "検証環境 — プレイグラウンド" /tmp/default.txt \
+          grep -q "Core Bluetooth（BLE）検証環境" /tmp/default.txt \
             || { echo "既定ゴールが help でない"; exit 1; }
 
-      - name: 構築/プレイグラウンドのターゲットが定義済み
+      - name: 準備/確認のターゲットが定義済み
         run: |
           db="$(make -rpn 2>/dev/null || true)"
           for t in help init setup scaffold-central \

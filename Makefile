@@ -1,12 +1,12 @@
 # ============================================================
 # Core Bluetooth（BLE）検証環境 Makefile
 #
-# 人間が叩くプレイグラウンド型インターフェース。
+# 人間が手で叩く二段階インターフェース（準備＋確認）。
 #
-#   構築（一度・冪等・実機/GUI 不要）
-#     make setup            3 つの検証環境を全部組み上げる
+#   準備（一度・冪等・実機/GUI 不要）
+#     make setup            検証に必要なものを全部用意する
 #
-#   プレイグラウンド（setup 後、実機をつないで好きに試す）
+#   確認（setup 後、実機をつないで順不同・何度でも試す）
 #     make flash-blinky     ① 開発キット: blinky を焼いて LED 点滅を見る
 #     make flash-peripheral ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 #     make capture          ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
@@ -43,10 +43,10 @@ TEMPLATE_URL ?= https://github.com/koki-mobile-studio/iOSAppTemplate.git
 .DEFAULT_GOAL := help
 
 help: ## このヘルプ（ターゲット一覧）を表示
-	@echo "Core Bluetooth（BLE）検証環境 — プレイグラウンド"
+	@echo "Core Bluetooth（BLE）検証環境"
 	@echo ""
-	@echo "  1. make setup で 3 つの検証環境を全部組み上げる（実機/GUI 不要・冪等）"
-	@echo "  2. 実機をつないで、下のプレイグラウンドを順不同・何度でも叩く"
+	@echo "  1. まず make setup で検証に必要なものを全部用意する（実機/GUI 不要・冪等）"
+	@echo "  2. 実機をつないで、下のコマンドで確認したいものを順不同・何度でも試す"
 	@echo ""
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN{FS=":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -58,7 +58,7 @@ help: ## このヘルプ（ターゲット一覧）を表示
 #     - blinky ビルド
 #     - Sniffer extcap 配置（子の install-sniffer）
 #     - Xcode Central プロジェクト生成（scaffold-central）
-#   実機書き込みと GUI 起動は一切含めない（それはプレイグラウンド側）。
+#   実機書き込みと GUI 起動は一切含めない（それは確認コマンド側）。
 # ============================================================
 init: ## submodule（子）を取得・更新
 	@git submodule update --init --recursive
@@ -94,7 +94,7 @@ scaffold-central: ## Central の Xcode プロジェクトを生成（iOSAppTempl
 	fi
 
 # ============================================================
-# プレイグラウンド（setup 後、実機をつないで試す）
+# 確認（setup 後、実機をつないで試す）
 #   各コマンドは「焼く／開く」という実機・GUI の動作だけを担う。ビルドは
 #   setup 済みのため速い（未 setup でも子の依存が必要分だけ補う）。
 # ============================================================

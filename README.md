@@ -34,19 +34,19 @@ CoreBluetoothDevelopmentBootstrap/   ← 本リポジトリ（オーケストレ
 
 ## 使い方
 
-人間が叩く**プレイグラウンド型**のインターフェース。`make setup` で 3 つの検証環境を一度に組み上げ、あとは実機をつないで 4 つのコマンドを**順不同・何度でも**叩いて試す。
+人間が手で叩く**二段階**のインターフェース。まず `make setup` で検証に必要なものを一度に用意し、あとは実機をつないで 4 つの確認コマンドを**順不同・何度でも**叩いて試す。
 
 ```sh
 git clone --recurse-submodules https://github.com/kokiTakashiki/CoreBluetoothDevelopmentBootstrap.git
 cd CoreBluetoothDevelopmentBootstrap
 # 既にクローン済みなら: make init（= git submodule update --init --recursive）
 
-# 構築（一度・冪等・実機/GUI 不要）
-make setup            # 3 つの検証環境を全部組み上げる
+# 準備（一度・冪等・実機/GUI 不要）
+make setup            # 検証に必要なものを全部用意する
                       #   = ツール導入 + NCS 取得 + blinky/peripheral_uart ビルド
                       #     + Sniffer extcap 配置 + Xcode Central プロジェクト生成
 
-# プレイグラウンド（実機をつないで、好きなものを試す）
+# 確認（実機をつないで、好きなものを順不同・何度でも試す）
 make flash-blinky     # ① 開発キット: blinky を焼いて LED 点滅を見る
 make flash-peripheral # ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 make capture          # ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
@@ -67,11 +67,11 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 
 | 区分 | コマンド | 説明 |
 | --- | --- | --- |
-| 構築 | `make setup` | 3 つの検証環境を全部組み上げる（実機/GUI 不要・冪等）。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
-| プレイグラウンド | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
-| プレイグラウンド | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
-| プレイグラウンド | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
-| プレイグラウンド | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
+| 準備 | `make setup` | 検証に必要なものを全部用意する（実機/GUI 不要・冪等）。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
+| 確認 | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
+| 確認 | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
+| 確認 | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| 確認 | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
 | その他 | `make` | ターゲット一覧（help）。 |
 | その他 | `make init` | submodule を取得・更新（`make setup` が内部で実行）。 |
 | その他 | `make scaffold-central` | Central の Xcode プロジェクトのみ生成（`make setup` が内部で実行）。 |
