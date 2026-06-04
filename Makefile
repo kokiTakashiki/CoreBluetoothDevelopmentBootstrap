@@ -31,10 +31,11 @@ NCS_BASE         ?= $(HOME)/ncs/$(NCS_VERSION)
 BLINKY_SAMPLE    ?= $(NCS_BASE)/zephyr/samples/basic/blinky
 BLINKY_BUILD_DIR ?= $(CURDIR)/build/blinky
 
-# --- Central の Xcode プロジェクト（iOSAppTemplate(Genesis) で生成。D-7） ---
-CENTRAL_DIR  ?= central
-APP_NAME     ?= BLECentralSample
-TEMPLATE_URL ?= https://github.com/koki-mobile-studio/iOSAppTemplate.git
+# --- Central の Xcode プロジェクト（同梱 project.yml を xcodegen で生成。D-7） ---
+# project.yml と Swift ソースはこのリポジトリに固定。実行時に iOSAppTemplate へ
+# 依存しない（テンプレの破壊的変更の影響を受けない）。.xcodeproj は生成物。
+CENTRAL_DIR ?= central
+APP_NAME    ?= BLECentralSample
 
 # ============================================================
 # 既定ゴール: help（副作用なし）
@@ -71,37 +72,17 @@ setup: init ## 3 つの検証環境を全部組み上げる
 	$(MAKE) -C $(SUBMODULE_DIR) build-firmware SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
 	@echo "--> [3/4] Sniffer extcap 配置"
 	$(MAKE) -C $(SUBMODULE_DIR) install-sniffer
-	@echo "--> [4/4] Xcode Central プロジェクト生成（iOSAppTemplate）"
+	@echo "--> [4/4] Xcode Central プロジェクト生成（xcodegen）"
 	@$(MAKE) --no-print-directory generate-central
 	@echo ""
 	@echo "==> setup 完了。実機をつないで以下を試せます:"
 	@echo "    make flash-blinky / make flash-peripheral / make capture / make open-central"
 
-# Central アプリは iOSAppTemplate(Genesis) で実装フェーズに生成する。
-# リポジトリが追跡するのは生成オプション(central-options.yml)と注入する
-# BLECentral.swift だけで、生成物（アプリ一式・.xcodeproj）は .gitignore（D-7）。
-generate-central: init ## Central アプリを iOSAppTemplate(Genesis) で生成し xcodegen で .xcodeproj 化
-	@echo "==> generate-central: iOSAppTemplate(Genesis) で Central アプリを生成します"
-	@command -v mint >/dev/null 2>&1 || brew install mint
-	@mint which yonaskolb/Genesis >/dev/null 2>&1 || mint install yonaskolb/Genesis
+# Central アプリの project.yml と Swift ソースはこのリポジトリに同梱。
+# ここでは xcodegen で .xcodeproj を生成するだけ（iOSAppTemplate へは依存しない。D-7）。
+generate-central: ## Central の .xcodeproj を生成（同梱 project.yml を xcodegen で）
 	@command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
-	@if [ ! -d "$(CENTRAL_DIR)/.iOSAppTemplate" ]; then \
-		echo "    [clone] $(TEMPLATE_URL)"; \
-		git clone --depth 1 "$(TEMPLATE_URL)" "$(CENTRAL_DIR)/.iOSAppTemplate"; \
-	fi
-	@if [ -d "$(CENTRAL_DIR)/$(APP_NAME)" ]; then \
-		echo "    [skip] $(CENTRAL_DIR)/$(APP_NAME) は生成済み（作り直すなら make clean 後）"; \
-	else \
-		echo "    [generate] Genesis → $(CENTRAL_DIR)/$(APP_NAME)"; \
-		( cd "$(CENTRAL_DIR)/.iOSAppTemplate" && \
-		  mint run yonaskolb/Genesis genesis generate genesis.yml \
-		    --destination "$(CURDIR)/$(CENTRAL_DIR)" \
-		    --option-path "$(CURDIR)/$(CENTRAL_DIR)/central-options.yml" \
-		    --non-interactive ); \
-		cp "$(CENTRAL_DIR)/BLECentral.swift" "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME)/BLECentral.swift"; \
-		echo "    [inject] BLECentral.swift を生成アプリへ配置"; \
-	fi
-	@echo "    [xcodegen] .xcodeproj を生成"
+	@echo "==> generate-central: xcodegen で .xcodeproj を生成します"
 	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && xcodegen generate )
 	@echo "==> generate-central: 完了 ($(CENTRAL_DIR)/$(APP_NAME))"
 
@@ -134,7 +115,7 @@ open-central: generate-central ## ③ Central: Xcode プロジェクトを開い
 		exit 1; \
 	fi; \
 	echo "==> open-central: $$proj を開きます"; \
-	echo "    注入済み BLECentral.swift を使い、Phase 1 の DK へ"; \
+	echo "    同梱の BLECentral.swift を使い、Phase 1 の DK へ"; \
 	echo "    scan→connect→discoverServices→discoverCharacteristics→readValue/setNotifyValue を実行してください。"; \
 	open "$$proj"
 
@@ -147,7 +128,8 @@ verify: init ## 機械検査（submodule へ委譲 / 読み取り専用＋[y/N]�
 clean: ## ビルド成果物・生成物を削除（追跡対象の central ソースは残す）
 	-@$(MAKE) -C $(SUBMODULE_DIR) clean
 	@rm -rf "$(CURDIR)/build"
-	@rm -rf "$(CENTRAL_DIR)/$(APP_NAME)" "$(CENTRAL_DIR)/.iOSAppTemplate"
+	@rm -rf "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME).xcodeproj" \
+	        "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME)/Info.plist"
 	@echo "==> clean: 完了"
 
 .PHONY: help init setup generate-central flash-blinky flash-peripheral \

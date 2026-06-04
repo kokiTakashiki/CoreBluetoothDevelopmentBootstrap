@@ -14,7 +14,7 @@ nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実
 CoreBluetoothDevelopmentBootstrap/   ← このリポジトリ
 ├── Makefile                         make の入口（submodule と central をまとめて呼ぶ）
 ├── docs/DESIGN-001.md               構成設計書
-├── central/                         Phase 3: Genesis 生成オプション＋注入する BLE ソース（生成物は gitignore）
+├── central/                         Phase 3: Central のソース（project.yml＋Swift。.xcodeproj は xcodegen 生成）
 └── external/
     └── nrf52840-ble-debug-bootstrap/  submodule: nRF52840 製 BLE デバッグ環境（Peripheral＋Sniffer）
 ```
@@ -59,7 +59,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | --- | --- | --- | --- |
 | **Phase 1** 開発キット単体 | DUT（BLE Peripheral） | blinky / peripheral_uart の書き込み | LED 点滅・nRF Connect での文字列往復 |
 | **Phase 2** プロトコルアナライザ運用 | 観測手段 | Sniffer extcap 配置・ドングルへの FW 書き込み | Wireshark への Sniffer 出現・各フェーズ観測 |
-| **Phase 3** Xcode Central 最小実装 | 検証主体（自作 Central） | iOSAppTemplate(Genesis) でアプリ生成・BLE ソース注入・xcodegen で .xcodeproj 化 | Xcode でのビルド・実行・Sniffer 裏取り |
+| **Phase 3** Xcode Central 最小実装 | 検証主体（自作 Central） | 同梱の project.yml を xcodegen で .xcodeproj 化（iOSAppTemplate 非依存） | Xcode でのビルド・実行・Sniffer 裏取り |
 
 各フェーズの完了条件・Mermaid 図・意思決定ログは [docs/DESIGN-001.md](docs/DESIGN-001.md) を参照。
 
@@ -74,7 +74,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | できること | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
 | その他 | `make` | ターゲット一覧（help）。 |
 | その他 | `make init` | submodule を取得・更新（`make setup` が内部で実行）。 |
-| その他 | `make generate-central` | Central アプリを iOSAppTemplate(Genesis) で生成し xcodegen で .xcodeproj 化（`make setup`／`open-central` が内部で実行）。 |
+| その他 | `make generate-central` | 同梱 project.yml から xcodegen で Central の .xcodeproj を生成（`make setup`／`open-central` が内部で実行）。 |
 | その他 | `make verify` | 機械検査（submodule へ委譲 / 読み取り専用＋[y/N]書込確認）。 |
 | その他 | `make clean` | ビルド成果物を削除（central プロジェクトは残す）。 |
 

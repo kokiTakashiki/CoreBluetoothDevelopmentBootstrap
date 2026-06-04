@@ -1,11 +1,13 @@
 # Build artifacts（blinky ビルドを submodule 委譲で親 build/ へ出す）
 /build/
 
-# Central: 生成物は追跡しない。
-# iOSAppTemplate(Genesis) が生成したアプリ（central/<appName>/）とテンプレ clone
-# キャッシュ（central/.iOSAppTemplate/）は生成物。追跡するのは central 直下の
-# central-options.yml・BLECentral.swift・README.md のみ。
-/central/*/
+# Central: project.yml と Swift ソースは追跡する。
+# xcodegen が生成する成果物（.xcodeproj・Info.plist）とビルド成果物だけ無視する。
+/central/BLECentralSample/*.xcodeproj/
+/central/BLECentralSample/*.xcworkspace/
+/central/BLECentralSample/BLECentralSample/Info.plist
+/central/BLECentralSample/build/
+/central/BLECentralSample/DerivedData/
 
 # macOS
 .DS_Store

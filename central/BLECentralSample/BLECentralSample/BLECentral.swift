@@ -1,32 +1,37 @@
+//
+//  BLECentral.swift
+//  BLECentralSample
+//
+//  Nordic UART Service（NUS）を相手取る Central の最小実装。
+//  DESIGN-001 Phase 3 の「検証主体」を満たす最小コード。
+//  scan → connect → discoverServices → discoverCharacteristics →
+//  setNotifyValue / writeValue の一連を示す。接続先は Phase 1 で構築した
+//  peripheral_uart 搭載の nRF52840 DK。
+//
+//    let central = BLECentral()
+//    central.onEvent = { print($0) }   // 任意: 画面表示などに使う
+//    central.start()                   // scan を開始する
+//    central.send("hello")             // RX 特性へ書き込み（往復確認）
+//
+
 import CoreBluetooth
 import Foundation
 
-/// Nordic UART Service（NUS）を相手取る Central の最小実装。
-///
-/// DESIGN-001 Phase 3 の「検証主体」を満たす最小コード。
-/// scan → connect → discoverServices → discoverCharacteristics →
-/// setNotifyValue / writeValue の一連を示す。接続先は Phase 1 で構築した
-/// peripheral_uart 搭載の nRF52840 DK。
-///
-/// このファイルは `make generate-central` が iOSAppTemplate(Genesis) で生成した
-/// アプリへ自動で注入する（生成アプリのソースに含まれ、xcodegen が拾う）。
-/// 生成アプリのどこか（例: SceneDelegate）で `BLECentral()` を生成すれば動く。
-///
-///   let central = BLECentral()   // 生成と同時に scan を開始する
-///   central.send("hello")        // RX 特性へ書き込み（往復確認）
 final class BLECentral: NSObject {
     // NUS の UUID 群（Nordic 定義）
     static let nusService = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
     static let nusRX      = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") // Central → Peripheral（Write）
     static let nusTX      = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") // Peripheral → Central（Notify）
 
-    private var central: CBCentralManager!
+    /// 各イベント（scan/接続/受信 など）の通知。画面表示などに使う（任意）。
+    var onEvent: ((String) -> Void)?
+
+    private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
     private var rxCharacteristic: CBCharacteristic?
 
-    override init() {
-        super.init()
-        // delegate を自身に、コールバックはメインキューで受ける。
+    /// scan を開始する。`CBCentralManager` を生成し、poweredOn になり次第 scan する。
+    func start() {
         central = CBCentralManager(delegate: self, queue: .main)
     }
 
@@ -36,22 +41,27 @@ final class BLECentral: NSObject {
         // NUS RX は Write Without Response を受け付ける。
         peripheral.writeValue(data, for: rx, type: .withoutResponse)
     }
+
+    private func log(_ message: String) {
+        print(message)
+        onEvent?(message)
+    }
 }
 
 extension BLECentral: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         guard central.state == .poweredOn else {
-            print("Bluetooth 利用不可: state=\(central.state.rawValue)")
+            log("Bluetooth 利用不可: state=\(central.state.rawValue)")
             return
         }
         // NUS を広告している Peripheral を走査する。
         central.scanForPeripherals(withServices: [Self.nusService])
-        print("scan 開始")
+        log("scan 開始")
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        print("発見: \(peripheral.name ?? "unknown") RSSI=\(RSSI)")
+        log("発見: \(peripheral.name ?? "unknown") RSSI=\(RSSI)")
         central.stopScan()
         self.peripheral = peripheral
         peripheral.delegate = self
@@ -59,14 +69,14 @@ extension BLECentral: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("接続: \(peripheral.name ?? "unknown")")
+        log("接続: \(peripheral.name ?? "unknown")")
         // 必要な Service のみを探索する。
         peripheral.discoverServices([Self.nusService])
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
-        print("切断: \(error?.localizedDescription ?? "正常")")
+        log("切断: \(error?.localizedDescription ?? "正常")")
     }
 }
 
@@ -86,8 +96,10 @@ extension BLECentral: CBPeripheralDelegate {
             case Self.nusTX:
                 // TX(Notify) を購読し、Peripheral からの通知を受ける。
                 peripheral.setNotifyValue(true, for: characteristic)
+                log("TX を購読")
             case Self.nusRX:
                 rxCharacteristic = characteristic
+                log("RX を取得")
             default:
                 break
             }
@@ -100,6 +112,6 @@ extension BLECentral: CBPeripheralDelegate {
         // UTF-8 として解釈し、不可なら 16 進ダンプで可視化する。
         let text = String(data: data, encoding: .utf8)
             ?? data.map { String(format: "%02x", $0) }.joined()
-        print("受信(TX): \(text)")
+        log("受信(TX): \(text)")
     }
 }
