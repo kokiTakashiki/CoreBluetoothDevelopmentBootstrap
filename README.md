@@ -34,7 +34,7 @@ CoreBluetoothDevelopmentBootstrap/   ← 本リポジトリ（オーケストレ
 
 ## 使い方
 
-人間が手で叩く**二段階**のインターフェース。まず `make setup` で検証に必要なものを一度に用意し、あとは実機をつないで 4 つの確認コマンドを**順不同・何度でも**叩いて試す。
+人間が手で叩く**二段階**のインターフェース。まず `make setup` で検証に必要なものを一度に用意し、あとは実機をつないで、この環境でできることを 4 つのコマンドで**順不同・何度でも**試す。
 
 ```sh
 git clone --recurse-submodules https://github.com/kokiTakashiki/CoreBluetoothDevelopmentBootstrap.git
@@ -46,7 +46,7 @@ make setup            # 検証に必要なものを全部用意する
                       #   = ツール導入 + NCS 取得 + blinky/peripheral_uart ビルド
                       #     + Sniffer extcap 配置 + Xcode Central プロジェクト生成
 
-# 確認（実機をつないで、好きなものを順不同・何度でも試す）
+# この環境でできること（実機をつないで、好きなものを順不同・何度でも試す）
 make flash-blinky     # ① 開発キット: blinky を焼いて LED 点滅を見る
 make flash-peripheral # ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 make capture          # ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
@@ -68,10 +68,10 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | 区分 | コマンド | 説明 |
 | --- | --- | --- |
 | 準備 | `make setup` | 検証に必要なものを全部用意する（実機/GUI 不要・冪等）。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
-| 確認 | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
-| 確認 | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
-| 確認 | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
-| 確認 | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
+| できること | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
+| できること | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
+| できること | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| できること | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
 | その他 | `make` | ターゲット一覧（help）。 |
 | その他 | `make init` | submodule を取得・更新（`make setup` が内部で実行）。 |
 | その他 | `make generate-central` | Central アプリを iOSAppTemplate(Genesis) で生成し xcodegen で .xcodeproj 化（`make setup`／`open-central` が内部で実行）。 |

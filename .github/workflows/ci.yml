@@ -27,7 +27,7 @@ jobs:
           grep -q "Core Bluetooth（BLE）検証環境" /tmp/default.txt \
             || { echo "既定ゴールが help でない"; exit 1; }
 
-      - name: 準備/確認のターゲットが定義済み
+      - name: 準備/できることのターゲットが定義済み
         run: |
           db="$(make -rpn 2>/dev/null || true)"
           for t in help init setup generate-central \

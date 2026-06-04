@@ -205,20 +205,20 @@ sequenceDiagram
 
 ## 5. Make ターゲット設計（親）
 
-この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる確認」** の二段階に分かれる。本ツールは人間が手で叩いて使うものであり、この使い勝手こそが最重要の設計対象である（[意思決定ログ D-10](#意思決定ログ)）。
+この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。本ツールは人間が手で叩いて使うものであり、この使い勝手こそが最重要の設計対象である（[意思決定ログ D-10](#意思決定ログ)）。
 
 **準備は `make setup` の一回だけである。** `setup` は検証に必要なものを全部まとめて用意する。具体的には、ツール（nrfutil・Wireshark 等）の導入、nRF Connect SDK の取得、開発キットへ書き込む 2 種類のファームウェア（blinky と peripheral_uart）のビルド、Sniffer を Wireshark から使うためのプラグイン配置、そして Xcode の Central プロジェクトの生成までを含む。この準備には実機もマウス操作も要らず、パソコン上で完結する。何度実行しても同じ状態に行き着く（冪等）ため、途中で失敗しても、設定を変えても、`make setup` を打ち直せば済む。
 
-**準備が終わったら、実機をつないで、確認したいものを個別のコマンドで動かす。** 確認用のコマンドは次の 4 つである。
+**準備が終わったら、実機をつないで、この環境でできることを個別のコマンドで試す。** コマンドは次の 4 つである。
 
 - `make flash-blinky` — 開発キットに blinky を書き込み、基板の LED が点滅するのを見る。
 - `make flash-peripheral` — 開発キットに peripheral_uart を書き込み、iPhone から接続して文字列が往復するのを見る。
 - `make capture` — ドングルに Sniffer を書き込み、Wireshark で電波上のやり取りを覗く。
 - `make open-central` — Xcode プロジェクトを開き、自分で書いた Central アプリを動かす。
 
-**この 4 つに決まった実行順序はない。** どれから始めてもよく、同じものを何度繰り返してもよい。たとえば「peripheral_uart を書き込み直して、もう一度キャプチャを取り直す」「Central アプリを直して、また開いて試す」といったことを、好きな順で何度でもできる。ビルドは `setup` で済ませてあるため、確認コマンドは「書き込む」「開く」だけを担い、すぐ動く。
+**この 4 つに決まった実行順序はない。** どれから始めてもよく、同じものを何度繰り返してもよい。たとえば「peripheral_uart を書き込み直して、もう一度キャプチャを取り直す」「Central アプリを直して、また開いて試す」といったことを、好きな順で何度でもできる。ビルドは `setup` で済ませてあるため、これらのコマンドは「書き込む」「開く」だけを担い、すぐ動く。
 
-実装上は、親が子へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲し、子の冪等性をそのまま受け継ぐ（D-8）。実機への書き込みと GUI 起動は `setup` には一切含めず、確認コマンド側の役割とする。
+実装上は、親が子へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲し、子の冪等性をそのまま受け継ぐ（D-8）。実機への書き込みと GUI 起動は `setup` には一切含めず、これらのコマンド側の役割とする。
 
 ### 5.1 ターゲット一覧
 
@@ -228,16 +228,16 @@ sequenceDiagram
 | 準備 | `init` | `git submodule update --init` | submodule の取得・更新（`setup` が内部で呼ぶ）。 |
 | 準備 | `setup` | 子 `setup` ＋ 子 `build-firmware`(blinky) ＋ 子 `install-sniffer` ＋ `generate-central` | **検証に必要なものを全部用意する。** 実機/GUI 不要・冪等。 |
 | 準備 | `generate-central` | iOSAppTemplate(Genesis) で生成 → BLECentral.swift 注入 → `xcodegen` | Central アプリと `.xcodeproj` を生成（`setup`/`open-central` が呼ぶ。既存ならスキップ）。 |
-| 確認① 開発キット | `flash-blinky` | 子 `flash-dk`（blinky 上書き） | blinky を焼いて LED 点滅を見る。 |
-| 確認① 開発キット | `flash-peripheral` | 子 `flash-dk` | peripheral_uart を焼く（nRF Connect で往復）。 |
-| 確認② アナライザ | `capture` | 子 `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
-| 確認③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
+| できること① 開発キット | `flash-blinky` | 子 `flash-dk`（blinky 上書き） | blinky を焼いて LED 点滅を見る。 |
+| できること① 開発キット | `flash-peripheral` | 子 `flash-dk` | peripheral_uart を焼く（nRF Connect で往復）。 |
+| できること② アナライザ | `capture` | 子 `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| できること③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
 | — | `verify` | 子 `verify` | 機械検査（読み取り専用＋[y/N]書込確認）。 |
 | — | `clean` | 子 `clean` ＋ 親 `build/` 削除 | ビルド成果物を削除（central プロジェクトは残す）。 |
 
-### 5.2 準備と確認のグラフ
+### 5.2 準備と「この環境でできること」のグラフ
 
-`make setup` が 4 つの準備ステップへ扇状に展開し、確認の各コマンドは独立に子へ委譲する。
+`make setup` が 4 つの準備ステップへ扇状に展開し、各コマンドは独立に子へ委譲する。
 
 ```mermaid
 graph TD
@@ -249,7 +249,7 @@ graph TD
         setup --> s4["generate-central<br/>iOSAppTemplate→注入→xcodegen"]
     end
 
-    subgraph play["確認（実機をつないで個別に実行・順不同）"]
+    subgraph play["この環境でできること（実機をつないで個別に実行・順不同）"]
         fb["make flash-blinky"] --> p1["子 flash-dk（blinky）"]
         fp["make flash-peripheral"] --> p2["子 flash-dk"]
         cap["make capture"] --> p3["子 flash-sniffer-dongle → Wireshark 起動"]
@@ -260,7 +260,7 @@ graph TD
 ### 5.3 冪等性と実行順序
 
 - `setup` の各ステップは状態検査つきで冪等（子のガード＋`generate-central` の存在検査）。再実行は同一状態へ収束する。
-- 確認の各コマンドは**独立・再入可能**で、決まった順序を持たない。FW の再書き込みは結果状態を変えないため実質冪等。`open-central` は何度開いてもよい。`generate-central` は `central/<appName>` が既にあれば生成をスキップし `xcodegen` のみ再実行する。生成物は `central-options.yml` から何度でも再生成できる。
+- 各コマンド（この環境でできること）は**独立・再入可能**で、決まった順序を持たない。FW の再書き込みは結果状態を変えないため実質冪等。`open-central` は何度開いてもよい。`generate-central` は `central/<appName>` が既にあれば生成をスキップし `xcodegen` のみ再実行する。生成物は `central-options.yml` から何度でも再生成できる。
 
 ## 6. 機械検証と人間検証の境界
 
@@ -286,7 +286,7 @@ graph TD
    - 親から移設対象ファイルを削除。
    - `git submodule add https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap.git external/nrf52840-ble-debug-bootstrap`。
 3. **親の新規実装**
-   - 親 `Makefile`（準備＋確認の二段階インターフェース。`setup` ＋ `flash-blinky`/`flash-peripheral`/`capture`/`open-central`）を追加。
+   - 親 `Makefile`（準備＋「この環境でできること」の二段階インターフェース。`setup` ＋ `flash-blinky`/`flash-peripheral`/`capture`/`open-central`）を追加。
    - `central/central-options.yml`（Genesis オプション）と `central/BLECentral.swift`（注入する BLE 実装）を配置、`generate-central` を実装。
    - 親 README を「Core Bluetooth 検証環境」として書き直し。
    - 親 `docs/DESIGN-001.md`（本書）を確定。
@@ -311,4 +311,4 @@ graph TD
 | D-7 | iOSAppTemplate を**実装フェーズに実際に走らせて生成**し、完成プロジェクトを vendor しない。リポジトリが追跡するのは生成オプション `central/central-options.yml` と注入する `central/BLECentral.swift` だけで、生成物（アプリ一式・`.xcodeproj`・`Info.plist`）は `.gitignore` する | iOSAppTemplate は Genesis テンプレで、生成物に XcodeGen `project.yml` を持つ（`.xcodeproj` はそこから `xcodegen` が再生成する）。完成プロジェクトを clone して vendor する当初案は、生成物（再生成可能な成果物）を git に載せてしまい筋が悪い（ユーザー指摘）。実際に `make app-generate` を実行して構成を確認し、**commit するのはテンプレ/スペック（genesis オプション）＋ BLE ソースだけ・`.xcodeproj` は生成物**という方針に確定した。`make generate-central` が iOSAppTemplate を取得→Genesis 生成→`BLECentral.swift` 注入→`xcodegen generate` を行い、`central-options.yml` から何度でも再生成できる。種別: 実装方針（ユーザー指摘・実証で確定）。 |
 | D-8 | 親は子へ `$(MAKE) -C` で委譲し、子の冪等性・関心分離（setup/deploy/verify）をそのまま継承する | 子は冪等性と書き込み/検証分離を作り込み済み。親はそれを再発明せず「フェーズ」の語彙を被せるだけにとどめ、二重実装と挙動のずれを防ぐ。 |
 | D-9 | 機械検証（CI が回す dry-run パース・submodule 整合）と人間確認（LED・GUI・実機実行）を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
-| D-10 | `make` インターフェースを「**準備（`make setup` 一回）＋確認（独立した 4 コマンド）**」の二段階にする | 本ツールは人間が手で叩いて使うものであり、最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が「準備（ビルド・配置・生成）」と「実機で動かす（書き込み・GUI 起動）」を 1 ターゲットに混在させ、`setup` も 3 環境のうち 1 つ（peripheral_uart）しか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。確認は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: UX / インターフェース設計（ユーザー指摘・承認済み）。 |
+| D-10 | `make` インターフェースを「**準備（`make setup` 一回）＋この環境でできること（独立した 4 コマンド）**」の二段階にする | 本ツールは人間が手で叩いて使うものであり、最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が「準備（ビルド・配置・生成）」と「実機で動かす（書き込み・GUI 起動）」を 1 ターゲットに混在させ、`setup` も 3 環境のうち 1 つ（peripheral_uart）しか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: UX / インターフェース設計（ユーザー指摘・承認済み）。 |
