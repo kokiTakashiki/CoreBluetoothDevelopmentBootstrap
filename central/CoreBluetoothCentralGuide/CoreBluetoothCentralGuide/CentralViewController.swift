@@ -32,13 +32,16 @@ final class CentralViewController: UIViewController {
 
     // MARK: Nordic UART Service（NUS）の UUID
 
-    /// 相手（peripheral_uart）が公開する GATT。Service の中に RX/TX の 2 特性がある。
-    /// これらは Nordic が定義・公開している固定 UUID（秘密ではない）。
+    /// 相手（peripheral_uart）が公開する GATT。Service の中に RX/TX の 2 特性がまとまっている。
+    /// これらは Nordic が定義・公開している固定 UUID（秘密ではない）。並び順に意味はなく、
+    /// 役割（service / rx / tx）で名前から引く。
     ///
     /// See also: https://github.com/nrfconnect/sdk-nrf/blob/main/include/bluetooth/services/nus.h
-    private static let nusService = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
-    private static let nusRX = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") // Write : Central → Peripheral
-    private static let nusTX = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") // Notify: Peripheral → Central
+    private enum NUS {
+        static let service = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+        static let rx = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") // Write : Central → Peripheral
+        static let tx = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") // Notify: Peripheral → Central
+    }
 
     // MARK: 状態
 
@@ -75,7 +78,7 @@ extension CentralViewController: CBCentralManagerDelegate {
             return
         }
         // 必要な Service を指定してスキャン（無駄な発見を絞るのが CB の作法）。
-        central.scanForPeripherals(withServices: [Self.nusService])
+        central.scanForPeripherals(withServices: [NUS.service])
         log("【1】scan 開始（NUS を広告する Peripheral を探す）")
     }
 
@@ -93,7 +96,7 @@ extension CentralViewController: CBCentralManagerDelegate {
     /// 手順 3 — 接続できたら Service を探索する。
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         log("【3】接続完了 → サービス探索")
-        peripheral.discoverServices([Self.nusService])
+        peripheral.discoverServices([NUS.service])
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
@@ -109,11 +112,11 @@ extension CentralViewController: CBPeripheralDelegate {
 
     /// 手順 4 — Service が見つかったら、その中の Characteristic を探索する。
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard let service = peripheral.services?.first(where: { $0.uuid == Self.nusService }) else {
+        guard let service = peripheral.services?.first(where: { $0.uuid == NUS.service }) else {
             return
         }
         log("【4】サービス発見 → 特性探索")
-        peripheral.discoverCharacteristics([Self.nusRX, Self.nusTX], for: service)
+        peripheral.discoverCharacteristics([NUS.rx, NUS.tx], for: service)
     }
 
     /// 手順 5 — Characteristic が見つかったら、TX を購読し RX を控える。
@@ -122,11 +125,11 @@ extension CentralViewController: CBPeripheralDelegate {
     {
         for characteristic in service.characteristics ?? [] {
             switch characteristic.uuid {
-            case Self.nusTX:
+            case NUS.tx:
                 // TX は Notify。購読すると Peripheral からの送信が手順 6 に届く。
                 peripheral.setNotifyValue(true, for: characteristic)
                 log("【5】TX を購読（setNotifyValue）")
-            case Self.nusRX:
+            case NUS.rx:
                 // RX は Write。ここに書くと Peripheral（DK の UART）へ送られる。
                 rxCharacteristic = characteristic
                 log("【5】RX を取得（writeValue 用）")
@@ -143,7 +146,7 @@ extension CentralViewController: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?)
     {
-        guard characteristic.uuid == Self.nusTX, let data = characteristic.value else {
+        guard characteristic.uuid == NUS.tx, let data = characteristic.value else {
             return
         }
         let hex = data.map { String(format: "%02x", $0) }.joined(separator: " ")
