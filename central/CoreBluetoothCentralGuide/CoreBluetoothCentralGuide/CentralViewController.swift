@@ -32,7 +32,10 @@ final class CentralViewController: UIViewController {
 
     // MARK: Nordic UART Service（NUS）の UUID
 
-    // 相手（peripheral_uart）が公開する GATT。Service の中に RX/TX の 2 特性がある。
+    /// 相手（peripheral_uart）が公開する GATT。Service の中に RX/TX の 2 特性がある。
+    /// これらは Nordic が定義・公開している固定 UUID（秘密ではない）。
+    ///
+    /// See also: https://github.com/nrfconnect/sdk-nrf/blob/main/include/bluetooth/services/nus.h
     private static let nusService = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
     private static let nusRX = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") // Write : Central → Peripheral
     private static let nusTX = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") // Notify: Peripheral → Central

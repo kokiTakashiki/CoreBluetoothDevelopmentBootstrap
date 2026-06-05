@@ -39,6 +39,8 @@ Apple の署名・ビルド・実行は Make の対象外（DESIGN-001 D-6）。
 
 ## NUS（Nordic UART Service）UUID
 
+出典: Nordic 定義の公開固定値（[`nus.h`](https://github.com/nrfconnect/sdk-nrf/blob/main/include/bluetooth/services/nus.h)）。
+
 | 特性 | UUID | 向き |
 | --- | --- | --- |
 | Service | `6E400001-B5A3-F393-E0A9-E50E24DCCA9E` | — |

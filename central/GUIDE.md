@@ -4,7 +4,7 @@
 題材は `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/CentralViewController.swift` 1 枚。
 peripheral_uart 搭載の nRF52840 DK へ接続し、Nordic UART Service の通信を流す。
 
-一次情報: Apple [About Core Bluetooth](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/AboutCoreBluetooth/Introduction.html)
+一次情報: Apple [About Core Bluetooth](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/AboutCoreBluetooth/Introduction.html) ／ NUS の UUID 定義 [`nus.h`](https://github.com/nrfconnect/sdk-nrf/blob/main/include/bluetooth/services/nus.h)
 
 ## 0. まず役割とモデルを掴む
 
