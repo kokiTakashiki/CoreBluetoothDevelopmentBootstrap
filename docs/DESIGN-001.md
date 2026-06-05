@@ -84,7 +84,8 @@ flowchart LR
 | — | `help` | — | 既定ゴール。`## 注記`から一覧を自動生成。副作用なし。 |
 | 準備 | `init` | `git submodule update --init` | `setup` が内部で呼ぶ、submodule の取得・更新。 |
 | 準備 | `setup` | submodule の `setup` ＋ `build-firmware`(blinky) ＋ `install-sniffer` ＋ `generate-central` | **検証に必要なものを全部用意する。** 実機/GUI 不要・冪等。 |
-| 準備 | `generate-central` | 同梱 `project.yml` を `xcodegen generate` | `setup`／`open-central` から呼ばれ、iOSAppTemplate 非依存で Central の `.xcodeproj` を生成する。 |
+| 準備 | `generate-central` | 同梱 `project.yml` を Mintfile 固定の XcodeGen で生成 | `setup`／`open-central` から呼ばれ、iOSAppTemplate 非依存で Central の `.xcodeproj` を生成する。 |
+| 整形 | `format` ／ `format-check` | Mintfile 固定の SwiftFormat | Central の Swift を整形／検査する。設定は `.swiftformat`。任意。 |
 | できること① 開発キット | `flash-blinky` | blinky を上書きした submodule の `flash-dk` | blinky を焼いて LED 点滅を見る。 |
 | できること① 開発キット | `flash-peripheral` | submodule の `flash-dk` | peripheral_uart を焼き、nRF Connect で往復を見る。 |
 | できること② アナライザ | `capture` | submodule の `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
@@ -194,6 +195,7 @@ CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
 │   ├── GUIDE.md                          #   Core Bluetooth 実装ガイド（教材）
 │   └── CoreBluetoothCentralGuide/                 #   project.yml ＋ Swift ソース（commit）
 │       ├── project.yml                   #     XcodeGen 定義（.xcodeproj の source of truth）
+│       ├── .swiftformat ・ Mintfile        #     SwiftFormat 設定・ツールの SHA 固定（iOSAppTemplate 由来）
 │       └── CoreBluetoothCentralGuide/*.swift      #     AppDelegate/SceneDelegate/CentralViewController
 │           # .xcodeproj・Info.plist は xcodegen 生成・.gitignore
 └── .github/
@@ -303,7 +305,7 @@ sequenceDiagram
 
 **完了条件:** 自作 Central が DK と上記フローを完走し、同じ通信が Wireshark 上でも観測できること。これをもって検証主体を確定し、Core Bluetooth 検証環境の構築を完了とする。
 
-**iOSAppTemplate の扱いという設計判断:** iOSAppTemplate は Genesis ベースのテンプレートで、XcodeGen `project.yml` を含むアプリ一式の雛形を生成する。これを**一度だけ**使って雛形を作り、その source of truth である `project.yml` と Swift ソースをこのリポジトリに固定する。**`make` 実行時に iOSAppTemplate へは依存しない**ため、テンプレが破壊的に変わっても影響を受けない。`make generate-central` は同梱の `project.yml` を `xcodegen generate` するだけ。追跡するのは `project.yml` と Swift ソースで、生成物である `.xcodeproj`・`Info.plist` は `.gitignore` する。
+**iOSAppTemplate の扱いという設計判断:** iOSAppTemplate は Genesis ベースのテンプレートで、XcodeGen `project.yml` を含むアプリ一式の雛形を生成する。これを**一度だけ**使って雛形を作り、その source of truth である `project.yml` と Swift ソースをこのリポジトリに固定する。**`make` 実行時に iOSAppTemplate へは依存しない**ため、テンプレが破壊的に変わっても影響を受けない。`make generate-central` は同梱の `project.yml` を `xcodegen generate` するだけ。追跡するのは `project.yml` と Swift ソースで、生成物である `.xcodeproj`・`Info.plist` は `.gitignore` する。ツールの XcodeGen と SwiftFormat は同梱 `Mintfile` で SHA 固定し Mint で実行する。`make format` で整形できる。
 
 ## 6. 機械検証と人間検証の境界
 

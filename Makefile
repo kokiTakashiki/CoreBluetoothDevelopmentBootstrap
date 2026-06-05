@@ -79,12 +79,23 @@ setup: init ## 3 つの検証環境を全部組み上げる
 	@echo "    make flash-blinky / make flash-peripheral / make capture / make open-central"
 
 # Central アプリの project.yml と Swift ソースはこのリポジトリに同梱。
-# ここでは xcodegen で .xcodeproj を生成するだけ（iOSAppTemplate へは依存しない。D-7）。
-generate-central: ## Central の .xcodeproj を生成（同梱 project.yml を xcodegen で）
-	@command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
-	@echo "==> generate-central: xcodegen で .xcodeproj を生成します"
-	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && xcodegen generate )
+# ツール（XcodeGen / SwiftFormat）は同梱 Mintfile で SHA 固定し Mint で実行する。
+# iOSAppTemplate へは実行時依存しない（D-7）。
+generate-central: ## Central の .xcodeproj を生成（Mintfile 固定の XcodeGen）
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@echo "==> generate-central: Mintfile 固定の XcodeGen で .xcodeproj を生成します"
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && mint run yonaskolb/XcodeGen xcodegen generate )
 	@echo "==> generate-central: 完了 ($(CENTRAL_DIR)/$(APP_NAME))"
+
+format: ## Central の Swift を整形（Mintfile 固定の SwiftFormat）
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@echo "==> format: SwiftFormat で整形します"
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && mint run nicklockwood/SwiftFormat swiftformat . )
+	@echo "==> format: 完了"
+
+format-check: ## Central の Swift 整形を検査（未整形なら失敗）
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && mint run nicklockwood/SwiftFormat swiftformat --lint . )
 
 # ============================================================
 # 確認（setup 後、実機をつないで試す）
@@ -115,7 +126,7 @@ open-central: generate-central ## ③ Central: Xcode プロジェクトを開い
 		exit 1; \
 	fi; \
 	echo "==> open-central: $$proj を開きます"; \
-	echo "    同梱の BLECentral.swift を使い、Phase 1 の DK へ"; \
+	echo "    同梱の Central 実装（CentralViewController）で、Phase 1 の DK へ"; \
 	echo "    scan→connect→discoverServices→discoverCharacteristics→readValue/setNotifyValue を実行してください。"; \
 	open "$$proj"
 
@@ -132,5 +143,5 @@ clean: ## ビルド成果物・生成物を削除（追跡対象の central ソ�
 	        "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME)/Info.plist"
 	@echo "==> clean: 完了"
 
-.PHONY: help init setup generate-central flash-blinky flash-peripheral \
+.PHONY: help init setup generate-central format format-check flash-blinky flash-peripheral \
         capture open-central verify clean

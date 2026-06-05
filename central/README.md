@@ -10,6 +10,8 @@ DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこ�
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/CentralViewController.swift` | Core Bluetooth の Central を手順順に並べたガイド付き教材。scan→connect→discover→notify/write を 1 枚に実装し、各手順をコメントで解説。受信バイト列を画面に出す。 | ○ |
 | `GUIDE.md` | 上記コードを読みながら Core Bluetooth の設計思想を学ぶプログラミングガイド。 | ○ |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/{AppDelegate,SceneDelegate}.swift` | UIKit のアプリ起動（雛形）。 | ○ |
+| `CoreBluetoothCentralGuide/.swiftformat` | SwiftFormat 設定（iOSAppTemplate 由来）。`make format` で使う。 | ○ |
+| `CoreBluetoothCentralGuide/Mintfile` | XcodeGen / SwiftFormat を SHA 固定（Mint で実行）。 | ○ |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide.xcodeproj` | `xcodegen generate` の生成物。 | ×（`.gitignore`） |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/Info.plist` | XcodeGen が `project.yml` の `info:` から生成。 | ×（`.gitignore`） |
 
@@ -20,6 +22,7 @@ DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこ�
 ```sh
 make setup          # 検証環境一式を用意（この .xcodeproj 生成も含む）
 make open-central   # xcodegen で生成し、Xcode で開く
+make format         # Swift を SwiftFormat で整形（Mintfile 固定）
 ```
 
 > アプリ名を変えるときは `CoreBluetoothCentralGuide/project.yml` の `name`・ディレクトリ名と、Makefile の `APP_NAME` を合わせる。
