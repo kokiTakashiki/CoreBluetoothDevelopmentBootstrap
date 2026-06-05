@@ -45,10 +45,12 @@ final class CentralViewController: UIViewController {
 
     // MARK: 状態
 
-    // Central Manager・接続中の Peripheral・書き込み先の RX 特性を保持する。
+    // 保持するのは Core Bluetooth の実体だけ。Manager・接続中の Peripheral・書き込み用の
+    // Characteristic を持つ。NUS の RX/TX という呼び名は「選別の瞬間」で役目を終えるので、
+    // 保持する変数は CB の役割（書き込み用）で名付ける。
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
-    private var rxCharacteristic: CBCharacteristic?
+    private var writeCharacteristic: CBCharacteristic?
 
     /// 手順の進行と受信バイト列を流すログビュー。
     private let logView = UITextView()
@@ -130,9 +132,10 @@ extension CentralViewController: CBPeripheralDelegate {
                 peripheral.setNotifyValue(true, for: characteristic)
                 log("【5】TX を購読（setNotifyValue）")
             case NUS.rx:
-                // RX は Write。ここに書くと Peripheral（DK の UART）へ送られる。
-                rxCharacteristic = characteristic
-                log("【5】RX を取得（writeValue 用）")
+                // NUS の RX は相手の受信口。Central からは「書き込み先」なので、以降は
+                // CB の役割名 writeCharacteristic で扱う（Nordic 語の出番はここまで）。
+                writeCharacteristic = characteristic
+                log("【5】書き込み先（NUS.rx）を取得")
             default:
                 break
             }
@@ -157,11 +160,11 @@ extension CentralViewController: CBPeripheralDelegate {
     /// 手順 7 — RX へ書き込む（往復確認用）。peripheral_uart は受けた値を DK の
     /// シリアルへ流す。DK のシリアル端末に入力すると TX 経由で手順 6 に返る。
     func send(_ text: String) {
-        guard let peripheral, let rx = rxCharacteristic, let data = text.data(using: .utf8) else {
+        guard let peripheral, let writeCharacteristic, let data = text.data(using: .utf8) else {
             return
         }
-        peripheral.writeValue(data, for: rx, type: .withoutResponse)
-        log("【7】送信 RX: \"\(text.trimmingCharacters(in: .newlines))\"")
+        peripheral.writeValue(data, for: writeCharacteristic, type: .withoutResponse)
+        log("【7】書き込み: \"\(text.trimmingCharacters(in: .newlines))\"")
     }
 }
 

@@ -16,6 +16,44 @@ peripheral_uart 搭載の nRF52840 DK へ接続し、Nordic UART Service の通�
 
 > 2 つのデリゲートはどちらも Central 側の話。`CBCentralManagerDelegate` は「マネージャの状態・発見・接続」、`CBPeripheralDelegate` は「接続した“相手”の GATT 探索・値」。`CBPeripheralManager`（自分が Peripheral になる役）は今回は使わない（それは DK のファームが担当）。
 
+### 層の分け方: Core Bluetooth と Nordic/NUS
+
+このサンプルには出自の違う 2 系統の型が出てくる。**Nordic（NUS）が決めるのは「何を・どんな意味で」**（UUID と RX/TX の意味）、**Core Bluetooth が扱うのは「機構と汎用の型」**（Manager・Peripheral・Service・Characteristic・Data）。
+
+ルール: **Nordic 固有の語（NUS・RX・TX・UUID）は `enum NUS` の中だけに閉じ込め、その外は Core Bluetooth／汎用の語で書く。** 接点は 2 つだけ — ① 入口で `NUS.*`（CBUUID）を Core Bluetooth の操作に渡す、② 返ってきた `CBCharacteristic` の `uuid` を `NUS.rx`／`NUS.tx` と照合して役割を決める。それ以降のデータ授受は `CBCharacteristic` と `Data` だけで完結する。だから**保持する状態は `CBPeripheral` ＋ 書き込み用 `CBCharacteristic` だけ**（購読は登録すれば届くので保持不要）。
+
+```mermaid
+flowchart TB
+    subgraph nordic["Nordic / NUS 層 — 何を・どういう意味で（このアプリ固有）"]
+        direction TB
+        svcUUID["NUS.service : CBUUID<br/>6E400001…<br/>このサービスを探す"]
+        rxUUID["NUS.rx : CBUUID<br/>6E400002<br/>相手の受信口＝こちらの書き込み先"]
+        txUUID["NUS.tx : CBUUID<br/>6E400003<br/>相手の送信口＝こちらの通知元"]
+    end
+
+    subgraph cb["Core Bluetooth 層 — BLE の機構・汎用の型（どの機器でも共通）"]
+        direction TB
+        manager["CBCentralManager"]
+        peripheral["CBPeripheral"]
+        service["CBService"]
+        chWrite["CBCharacteristic（書き込み用に保持）"]
+        chNotify["CBCharacteristic（購読）"]
+        outData["Data（送信バイト列）"]
+        inData["Data（受信バイト列）"]
+    end
+
+    svcUUID -->|"scanForPeripherals(withServices:)"| manager
+    manager -->|"発見 → connect"| peripheral
+    svcUUID -->|"discoverServices([service])"| peripheral
+    peripheral -->|didDiscoverServices| service
+    rxUUID -->|"discoverCharacteristics([rx,tx], for:)"| service
+    txUUID -->|"discoverCharacteristics([rx,tx], for:)"| service
+    service -->|"uuid == NUS.rx で選別"| chWrite
+    service -->|"uuid == NUS.tx で選別"| chNotify
+    outData -->|"writeValue(_, for:)"| chWrite
+    chNotify -->|"setNotifyValue → didUpdateValue"| inData
+```
+
 ## 1. はしご（このサンプルがたどる手順）
 
 ```mermaid
