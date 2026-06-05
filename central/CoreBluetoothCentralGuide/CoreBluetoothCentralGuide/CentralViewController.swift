@@ -37,6 +37,9 @@ final class CentralViewController: UIViewController {
     /// 役割（service / rx / tx）で名前から引く。
     ///
     /// See also: https://github.com/nrfconnect/sdk-nrf/blob/main/include/bluetooth/services/nus.h
+    /// このサンプルは終始 main actor で動く（CoreBluetooth も下記 .main で配送）。UUID 定数も
+    /// それに合わせ @MainActor にして、Swift 6 の並行性チェック（非 Sendable な CBUUID）を満たす。
+    @MainActor
     private enum NUS {
         static let service = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
         static let rx = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") // Write : Central → Peripheral
@@ -71,7 +74,10 @@ final class CentralViewController: UIViewController {
 
 // MARK: - CBCentralManagerDelegate（Central 側: 状態・発見・接続）
 
-extension CentralViewController: CBCentralManagerDelegate {
+/// CoreBluetooth は並行性注釈の無い（pre-concurrency）フレームワーク。コールバックは上で
+/// 指定した .main キュー（= main actor）で届くので、@MainActor な VC のまま安全に受けられる。
+/// Swift 6 にはその前提を @preconcurrency で明示する（CBPeripheralDelegate も同じ）。
+extension CentralViewController: @preconcurrency CBCentralManagerDelegate {
 
     /// 手順 1 — 状態が先。poweredOn になって初めてスキャンしてよい。
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -110,7 +116,7 @@ extension CentralViewController: CBCentralManagerDelegate {
 
 // MARK: - CBPeripheralDelegate（接続先の GATT: サービス・特性・値）
 
-extension CentralViewController: CBPeripheralDelegate {
+extension CentralViewController: @preconcurrency CBPeripheralDelegate {
 
     /// 手順 4 — Service が見つかったら、その中の Characteristic を探索する。
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
