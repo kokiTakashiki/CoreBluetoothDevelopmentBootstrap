@@ -102,9 +102,22 @@ format-check: ## Central の Swift 整形を検査（未整形なら失敗）
 #   各コマンドは「焼く／開く」という実機・GUI の動作だけを担う。ビルドは
 #   setup 済みのため速い（未 setup でも submodule の依存が必要分だけ補う）。
 # ============================================================
-flash-blinky: init ## ① 開発キット: blinky を焼いて LED 点滅を見る
-	@echo "==> flash-blinky: blinky を書き込みます（DK の LED1 点滅を確認）"
+flash-blinky: init ## ① 開発キット: blinky を焼いて LED 点滅を見る（消灯→点滅で差分を確認）
+	@echo "==> flash-blinky: 実行前後で LED 差分が出るよう、消灯させてから書き込みます"
+	@# ① blinky を先にビルド（消去〜書込の間を短く保ち、消灯の観測窓を予測可能にする）
+	$(MAKE) -C $(SUBMODULE_DIR) build-firmware SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
+	@# ② baseline: 全消去で全 LED を消灯させる（既に点滅中でも無地に揃う）
+	$(MAKE) -C $(SUBMODULE_DIR) erase-dk
+	@# ③ 消灯を目視確認させる一時停止（対話端末のときだけ。非対話/CI では止めず進む）
+	@if [ -t 0 ]; then \
+		printf '    >>> DK の全 LED が消灯したのを確認したら Enter を押してください（blinky を書き込みます）... '; \
+		read _ ; \
+	else \
+		echo "    [非対話] 消灯確認の一時停止をスキップして書き込みます"; \
+	fi
+	@# ④ blinky 書き込み → LED1 が点滅し始める（消灯からの OFF→ON が観測可能な差分）
 	$(MAKE) -C $(SUBMODULE_DIR) flash-dk SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
+	@echo "    検証: 消灯状態から LED1 が点滅に変われば OK です。"
 
 flash-peripheral: init ## ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 	@echo "==> flash-peripheral: peripheral_uart を書き込みます"

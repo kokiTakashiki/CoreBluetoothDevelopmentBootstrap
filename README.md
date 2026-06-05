@@ -47,7 +47,7 @@ make setup            # 検証に必要なものを全部用意する
                       #     + Sniffer extcap 配置 + Xcode Central プロジェクト生成
 
 # この環境でできること（実機をつないで、好きなものを順不同・何度でも試す）
-make flash-blinky     # ① 開発キット: blinky を焼いて LED 点滅を見る
+make flash-blinky     # ① 開発キット: 消灯→点滅の差分で確認（全消去→消灯確認→blinky 書き込み）
 make flash-peripheral # ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 make capture          # ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
 make open-central     # ③ Central: Xcode プロジェクトを開いてアプリを動かす
@@ -57,7 +57,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 
 | フェーズ | 目的（確定するもの） | Makefile が自動化 | 人手で確認 |
 | --- | --- | --- | --- |
-| **Phase 1** 開発キット単体 | DUT（BLE Peripheral） | blinky / peripheral_uart の書き込み | LED 点滅・nRF Connect での文字列往復 |
+| **Phase 1** 開発キット単体 | DUT（BLE Peripheral） | blinky / peripheral_uart の書き込み | 消灯→LED 点滅・nRF Connect での文字列往復 |
 | **Phase 2** プロトコルアナライザ運用 | 観測手段 | Sniffer extcap 配置・ドングルへの FW 書き込み | Wireshark への Sniffer 出現・各フェーズ観測 |
 | **Phase 3** Xcode Central 最小実装 | 検証主体（自作 Central） | 同梱の project.yml を xcodegen で .xcodeproj 化（iOSAppTemplate 非依存） | Xcode でのビルド・実行・Sniffer 裏取り |
 
@@ -68,7 +68,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | 区分 | コマンド | 説明 |
 | --- | --- | --- |
 | 準備 | `make setup` | 検証に必要なものを全部用意する。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
-| できること | `make flash-blinky` | ① 開発キット: blinky を焼いて LED 点滅を見る。 |
+| できること | `make flash-blinky` | ① 開発キット: 全消去で消灯させ、消灯確認の一時停止を挟んで blinky を焼く。消灯→点滅の差分で書き込み成功を確認（非対話/CI では止めず実行）。 |
 | できること | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）。 |
 | できること | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
 | できること | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
