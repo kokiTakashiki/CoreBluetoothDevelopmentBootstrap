@@ -195,7 +195,7 @@ CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
 │   ├── GUIDE.md                          #   Core Bluetooth 実装ガイド（教材）
 │   └── CoreBluetoothCentralGuide/                 #   project.yml ＋ Swift ソース（commit）
 │       ├── project.yml                   #     XcodeGen 定義（.xcodeproj の source of truth）
-│       ├── .swiftformat ・ Mintfile        #     SwiftFormat 設定・ツールの SHA 固定（iOSAppTemplate 由来）
+│       ├── .swiftformat / Mintfile / .swift-version  #  整形設定・ツール SHA 固定・Swift ツールチェーン版（iOSAppTemplate 由来）
 │       └── CoreBluetoothCentralGuide/*.swift      #     AppDelegate/SceneDelegate/CentralViewController
 │           # .xcodeproj・Info.plist は xcodegen 生成・.gitignore
 └── .github/

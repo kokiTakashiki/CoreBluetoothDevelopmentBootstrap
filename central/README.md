@@ -12,6 +12,7 @@ DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこ�
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/{AppDelegate,SceneDelegate}.swift` | UIKit のアプリ起動（雛形）。 | ○ |
 | `CoreBluetoothCentralGuide/.swiftformat` | SwiftFormat 設定（iOSAppTemplate 由来）。`make format` で使う。 | ○ |
 | `CoreBluetoothCentralGuide/Mintfile` | XcodeGen / SwiftFormat を SHA 固定（Mint で実行）。 | ○ |
+| `CoreBluetoothCentralGuide/.swift-version` | Swift ツールチェーン版（6.3.1）。無いと整形時に警告が出るため同梱。 | ○ |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide.xcodeproj` | `xcodegen generate` の生成物。 | ×（`.gitignore`） |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/Info.plist` | XcodeGen が `project.yml` の `info:` から生成。 | ×（`.gitignore`） |
 
