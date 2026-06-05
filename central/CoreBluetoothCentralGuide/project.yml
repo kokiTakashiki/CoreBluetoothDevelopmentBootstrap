@@ -16,12 +16,22 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     TARGETED_DEVICE_FAMILY: "1,2"
+packages:
+  Pulse:
+    url: https://github.com/kean/Pulse
+    exactVersion: 5.2.2
+
 targets:
   CoreBluetoothCentralGuide:
     type: application
     platform: iOS
     sources:
       - path: CoreBluetoothCentralGuide
+    dependencies:
+      - package: Pulse
+        product: Pulse
+      - package: Pulse
+        product: PulseUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.CoreBluetoothCentralGuide

@@ -7,7 +7,7 @@ DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこ�
 | パス | 役割 | git 追跡 |
 | --- | --- | --- |
 | `CoreBluetoothCentralGuide/project.yml` | XcodeGen のプロジェクト定義（`.xcodeproj` の source of truth）。 | ○ |
-| `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/CentralViewController.swift` | Core Bluetooth の Central を手順順に並べたガイド付き教材。scan→connect→discover→notify/write を 1 枚に実装し、各手順をコメントで解説。受信バイト列を画面に出す。 | ○ |
+| `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/CentralViewController.swift` | Core Bluetooth の Central を手順順に並べたガイド付き教材。scan→connect→discover→notify/write を 1 枚に実装し、各手順をコメントで解説。受信バイト列を Pulse のコンソールに出す。 | ○ |
 | `GUIDE.md` | 上記コードを読みながら Core Bluetooth の設計思想を学ぶプログラミングガイド。 | ○ |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/{AppDelegate,SceneDelegate}.swift` | UIKit のアプリ起動（雛形）。 | ○ |
 | `CoreBluetoothCentralGuide/.swiftformat` | SwiftFormat 設定（iOSAppTemplate 由来）。`make format` で使う。 | ○ |
@@ -34,7 +34,7 @@ Apple の署名・ビルド・実行は Make の対象外（DESIGN-001 D-6）。
 1. 実機（iPhone）を選び、署名チームを設定してビルド・実行する。
 2. アプリは起動と同時に scan を開始し、Phase 1 の peripheral_uart 搭載 DK へ
    `scan → connect → discoverServices → discoverCharacteristics → readValue/setNotifyValue`
-   を流す。各イベントは画面とコンソールに出る。
+   を流す。各イベントは Pulse のコンソール画面に出る（検索・フィルタ可）。
 3. 同じ通信を Phase 2 の Wireshark でも観測し、Swift 実装が出すバイト列を可視化する。
 
 ## NUS（Nordic UART Service）UUID

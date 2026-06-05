@@ -93,7 +93,7 @@ flowchart TD
 
 ## 3. View と Wireshark の突き合わせ（検証の要）
 
-このサンプルの画面は「ログビュー」だけ。手順の進行に加え、**受信バイト列（手順6）を hex と UTF-8 で表示**する。
+このサンプルの画面は [Pulse](https://github.com/kean/Pulse) のコンソール（検索・フィルタ・詳細つき）だけ。各手順の進行に加え、**受信バイト列（手順6）を hex と UTF-8 で表示**する。画面レイアウトは関心の外なので定評ある UI に任せ、コードは BLE に集中する。ログは `LoggerStore.shared.storeMessage(label: "BLE", …)` で流し、コンソールが自動更新する。
 
 - 手順 7 の `writeValue` は、Wireshark（Phase 2 の Sniffer）に **ATT Write Request/Command** として現れる。
 - 手順 6 の受信は、Wireshark に **Handle Value Notification** として現れる。

@@ -22,6 +22,8 @@
 //
 
 import CoreBluetooth
+import Pulse
+import PulseUI
 import UIKit
 
 // この教材ファイルは手順順（手順 0 → 7）を学習動線として保つため、宣言の自動整理だけ無効化する。
@@ -55,14 +57,11 @@ final class CentralViewController: UIViewController {
     private var peripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?
 
-    /// 手順の進行と受信バイト列を流すログビュー。
-    private let logView = UITextView()
-
     // MARK: 手順 0 — Central Manager を起動する
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setUpLogView()
+        setUpConsole()
 
         // Central の入口。delegate に自分を渡すと、Bluetooth の状態変化・発見・接続が
         // すべてコールバックで返る。queue: .main にして UI 更新を簡単にする。
@@ -174,25 +173,27 @@ extension CentralViewController: @preconcurrency CBPeripheralDelegate {
     }
 }
 
-// MARK: - ログビュー（UI は本質ではないので最小限）
+// MARK: - ログ画面（Pulse）
 
 private extension CentralViewController {
-    func setUpLogView() {
-        view.backgroundColor = .systemBackground
-        logView.isEditable = false
-        logView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        logView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(logView)
+    /// ログ画面は Pulse の用意済みコンソール（検索・フィルタ・詳細つき）に丸ごと任せる。
+    /// 画面レイアウトは関心の外なので、定評ある UI を埋め込み、こちらは BLE に集中する。
+    func setUpConsole() {
+        let console = PulseUI.MainViewController()
+        addChild(console)
+        console.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(console.view)
         NSLayoutConstraint.activate([
-            logView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-            logView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            logView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            logView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            console.view.topAnchor.constraint(equalTo: view.topAnchor),
+            console.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            console.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            console.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        console.didMove(toParent: self)
     }
 
+    /// ログは Pulse のストアへ流す。コンソール画面はストアを監視して自動更新する。
     func log(_ message: String) {
-        print(message) // コンソールにも出す（ロギング要件）
-        logView.text += message + "\n"
+        LoggerStore.shared.storeMessage(label: "BLE", level: .info, message: message)
     }
 }
