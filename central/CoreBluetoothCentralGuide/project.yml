@@ -9,7 +9,7 @@ options:
   developmentLanguage: ja
   knownRegions: [ja]
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "26.4"
   createIntermediateGroups: true
 
 settings:
