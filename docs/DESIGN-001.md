@@ -69,7 +69,7 @@ flowchart LR
 **準備が終わったら、実機をつないで、この環境でできることを個別のコマンドで試す。** コマンドは次の 4 つである。
 
 - `make flash-blinky` — 開発キットをまず全消去して LED を消灯させ、消灯を確認してから blinky を書き込み、LED が点滅に変わるのを見る。消灯から点滅への変化を観測することで、書き込みが効いたと確かめられる（既に点滅していると書き込み前後で見分けがつかないため、消灯を起点に差分を作る）。
-- `make flash-peripheral` — 開発キットに peripheral_uart を書き込み、iPhone から接続して文字列が往復するのを見る。
+- `make flash-peripheral` — 開発キットに peripheral_uart を書き込む。これは BLE(NUS) と開発キットのシリアルを橋渡しするだけで、自分からは何も送らない。自分で文字を送って往復を確かめる: iPhone の nRF Connect for Mobile で RX に書いた文字が開発キットのシリアル端末に出れば下り、シリアル端末で打った文字が nRF Connect の TX 通知に届けば上りが確認できる。
 - `make capture` — ドングルに Sniffer を書き込み、Wireshark で電波上のやり取りを覗く。
 - `make open-central` — Xcode プロジェクトを開き、自分で書いた Central アプリを動かす。
 
@@ -232,7 +232,7 @@ flowchart LR
 | --- | --- | --- |
 | Nordic 公式 Getting Started に従い blinky を書き込み | ○ submodule の `erase-dk` で全消去 → 消灯確認の一時停止 → blinky を変数上書きした `flash-dk` | 消灯状態から LED が点滅に変わること |
 | Nordic UART Service の peripheral_uart を書き込み | ○ 既定サンプルである submodule の `flash-dk` | — |
-| iPhone の nRF Connect for Mobile から接続し文字列の往復を確認 | × GUI 操作のため対象外 | RX/TX で文字列が往復すること |
+| nRF Connect for Mobile と開発キットのシリアル端末(115200 bps)で文字列の往復を確認 | × GUI / 手入力のため対象外（橋渡し自体は peripheral_uart が担う） | 下り: RX(6E400002) に `hello` を Write → シリアル端末に `hello` が出る。上り: シリアル端末で `world` を打つ → TX(6E400003) の通知に `world` が届く |
 
 <p align="center"><sub>表 4 — Phase 1 の手順と、Makefile の自動化範囲および人間の確認。</sub></p>
 
@@ -249,7 +249,9 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 
 **消灯を起点に差分を作る:** blinky は LED を点滅させるサンプルだが、開発キットが既に点滅状態だと書き込み前後で見た目が変わらず、書き込みが効いたか確かめられない。そこで `flash-blinky` は書き込みの前に全消去で LED を消灯させ、消灯を目視確認させる一時停止を挟んでから書き込む。消灯から点滅への変化が、書き込み成功の観測可能な証拠になる。全消去はデバイス操作（nrfjprog / J-Link）であり、その道具一式を持つ submodule 側の `erase-dk` ターゲットへ寄せる。誘導の一時停止という UX は親側に置く。一時停止は対話端末のときだけで、非対話（CI）では止めず通常書き込みする（D-12）。
 
-**完了条件:** blinky で消灯から LED 点滅への変化を確認し、peripheral_uart 書き込み後に nRF Connect for Mobile で文字列の往復が取れること。これをもって被検証側を確定する。
+**peripheral_uart は橋渡し（自分からは送らない）:** このサンプルは BLE(NUS) と開発キットのシリアルを双方向に橋渡しするだけで、自動では何も送信しない。よって往復は人間が文字を送って確かめる。RX に書いた文字がシリアルへ抜ければ下り、シリアルで打った文字が TX 通知で返れば上りが取れる。観測には開発キットのシリアル端末（115200 bps。`ls /dev/tty.usbmodem*` でポートを確認し `screen` 等で接続）が要る。BLE 内でのエコーは無いため、ループは必ず BLE ↔ シリアルを経由する。
+
+**完了条件:** blinky で消灯から LED 点滅への変化を確認し、peripheral_uart 書き込み後に「nRF Connect の RX へ `hello` を書くとシリアル端末に `hello` が出る（下り）／シリアル端末で `world` を打つと nRF Connect の TX 通知に `world` が届く（上り）」の往復が取れること。これをもって被検証側を確定する。
 
 ### 5.2 Phase 2 — プロトコルアナライザ運用の確立
 

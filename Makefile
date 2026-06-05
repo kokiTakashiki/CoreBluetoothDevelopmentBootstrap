@@ -122,8 +122,16 @@ flash-blinky: init ## ① 開発キット: blinky を焼いて LED 点滅を見�
 flash-peripheral: init ## ① 開発キット: peripheral_uart を焼く（nRF Connect で往復）
 	@echo "==> flash-peripheral: peripheral_uart を書き込みます"
 	$(MAKE) -C $(SUBMODULE_DIR) flash-dk
-	@echo "    iPhone の nRF Connect for Mobile から 'Nordic_UART_Service'(NUS) に接続し、"
-	@echo "    RX/TX で文字列が往復することを確認してください。"
+	@echo "    peripheral_uart は BLE(NUS) と DK のシリアルを橋渡しするだけで、自分から文字は出しません。"
+	@echo "    自分で文字を送って往復を確かめます（RX/TX は Peripheral=DK 視点の呼称）:"
+	@echo "      準備1) DK のシリアル端末を開く（115200 bps）。例:"
+	@echo "             ls /dev/tty.usbmodem*   # ポート確認 →   screen /dev/tty.usbmodemXXXX 115200"
+	@echo "      準備2) iPhone の nRF Connect for Mobile で 'Nordic_UART_Service' に接続し、"
+	@echo "             TX(6E400003) の通知(Notify)を ON にする"
+	@echo "      下り) nRF Connect で RX(6E400002) に文字（例 hello）を Write →"
+	@echo "            DK のシリアル端末に hello が出れば Central→Peripheral OK"
+	@echo "      上り) DK のシリアル端末で文字（例 world）を打って Enter →"
+	@echo "            nRF Connect の TX 通知に world が届けば Peripheral→Central OK"
 
 capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
 	@echo "==> capture: ドングルへ Sniffer FW を書き込みます（Open Bootloader 確認あり）"
