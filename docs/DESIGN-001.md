@@ -339,7 +339,7 @@ sequenceDiagram
 | D-8 | このリポジトリは submodule へ `$(MAKE) -C` で委譲し、submodule の冪等性と setup・deploy・verify の関心分離をそのまま継承する | submodule は冪等性と書き込み/検証分離を作り込み済み。このリポジトリはそれを再発明せず、まとめて呼び出すだけにとどめ、二重実装と挙動のずれを防ぐ。 |
 | D-9 | CI が回す dry-run パース・submodule 整合の機械検証と、LED・GUI・実機実行の人間確認を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
 | D-10 | `make` インターフェースを「**`make setup` 一回の準備 ＋ 独立した 4 コマンドのこの環境でできること**」の二段階にする | 最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が、ビルド・配置・生成の準備と、書き込み・GUI 起動による実機で動かす操作を 1 ターゲットに混在させ、`setup` も 3 環境のうち peripheral_uart の 1 つしか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: ユーザー指摘で承認済みの UX / インターフェース設計。 |
-| D-11 | Central のログ画面に [Pulse](https://github.com/kean/Pulse) を採用する | 教材の関心は Core Bluetooth であり、ログ画面のレイアウトは関心の外。自前の `UITextView` をやめ、定評ある Pulse のコンソール（検索・フィルタ・詳細つき）を `PulseUI.MainViewController` で埋め込み、ログは `LoggerStore.shared.storeMessage` へ流す。依存は `project.yml` に `exactVersion: 5.2.2` で固定。種別: 依存採用（ユーザー指摘）。 |
+| D-11 | Central のログ画面に [Pulse](https://github.com/kean/Pulse) を採用する | 教材の関心は Core Bluetooth であり、ログ画面のレイアウトは関心の外。自前の `UITextView` をやめ、定評ある Pulse のコンソール（検索・フィルタ・詳細つき）を `PulseUI.MainViewController` で埋め込み、ログは `LoggerStore.shared.storeMessage` へ流す。依存は `project.yml` に `revision`（コミット SHA。5.2.2）で固定。種別: 依存採用（ユーザー指摘）。 |
 
 <p align="center"><sub>表 8 — 解決した選択を記録する意思決定ログ。</sub></p>
 

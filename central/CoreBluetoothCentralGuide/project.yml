@@ -19,7 +19,7 @@ settings:
 packages:
   Pulse:
     url: https://github.com/kean/Pulse
-    exactVersion: 5.2.2
+    revision: a4e5bc2b0439552d4ff5fc9667c389be6ef5bd52 # 5.2.2
 
 targets:
   CoreBluetoothCentralGuide:
