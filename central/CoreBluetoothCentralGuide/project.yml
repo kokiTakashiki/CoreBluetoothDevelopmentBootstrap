@@ -16,6 +16,13 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     TARGETED_DEVICE_FAMILY: "1,2"
+
+# 教材ガイドを Xcode のプロジェクトナビゲータに表示する（非コンパイル）。
+# 学習者がコードと並べて GUIDE.md を読めるようにする。
+fileGroups:
+  - ../GUIDE.md
+  - ../README.md
+
 packages:
   Pulse:
     url: https://github.com/kean/Pulse
