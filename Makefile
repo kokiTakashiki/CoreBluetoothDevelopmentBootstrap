@@ -5,9 +5,9 @@
 #   make flash-blinky     ① 開発キット: blinky を焼いて LED 点滅を見る
 #   make flash-peripheral ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査
 #   make capture          ② アナライザ: ドングルに Sniffer を焼き Wireshark で観測
+#   make open-central     ③ Central: Xcode プロジェクトを開いてアプリを動かす
 #
 # nRF ハード固有の工程は submodule external/nrf52840-ble-debug-bootstrap へ委譲する。
-# 残りの各コマンド（open-central）は後続の PR で追加する。
 # 設計の詳細は docs/DESIGN-001.md を参照。
 # 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（対象外）。
 # ============================================================
@@ -24,6 +24,12 @@ NCS_VERSION      ?= v2.6.1
 NCS_BASE         ?= $(HOME)/ncs/$(NCS_VERSION)
 BLINKY_SAMPLE    ?= $(NCS_BASE)/zephyr/samples/basic/blinky
 BLINKY_BUILD_DIR ?= $(CURDIR)/build/blinky
+
+# --- Central の Xcode プロジェクト（同梱 project.yml を xcodegen で生成。D-7） ---
+# project.yml と Swift ソースはこのリポジトリに固定。実行時に iOSAppTemplate へ依存しない。
+# .xcodeproj は生成物（.gitignore）。
+CENTRAL_DIR ?= central
+APP_NAME    ?= CoreBluetoothCentralGuide
 
 # ============================================================
 # 既定ゴール: help
@@ -51,14 +57,36 @@ init: ## submodule を取得・更新
 
 setup: init ## 検証環境の基盤を組み上げる（実機不要・冪等）
 	@echo "==> setup: 検証環境の基盤を組み上げます（実機不要・再実行は冪等）"
-	@echo "--> [1/3] ツール導入＋NCS 取得＋peripheral_uart ビルド"
+	@echo "--> [1/4] ツール導入＋NCS 取得＋peripheral_uart ビルド"
 	$(MAKE) -C $(SUBMODULE_DIR) setup
-	@echo "--> [2/3] blinky ビルド"
+	@echo "--> [2/4] blinky ビルド"
 	$(MAKE) -C $(SUBMODULE_DIR) build-firmware SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
-	@echo "--> [3/3] Sniffer extcap 配置"
+	@echo "--> [3/4] Sniffer extcap 配置"
 	$(MAKE) -C $(SUBMODULE_DIR) install-sniffer
+	@echo "--> [4/4] Xcode Central プロジェクト生成（xcodegen）"
+	@$(MAKE) --no-print-directory generate-central
 	@echo ""
-	@echo "==> setup 完了。実機をつないで make flash-blinky を試せます。"
+	@echo "==> setup 完了。実機をつないで make flash-blinky / flash-peripheral / capture / open-central を試せます。"
+
+# ============================================================
+# Central（教材アプリ）: project.yml ＋ Swift を source of truth とし .xcodeproj を生成。
+# ツール（XcodeGen / SwiftFormat）は同梱 Mintfile で SHA 固定し Mint で実行（D-7）。
+# ============================================================
+generate-central: ## Central の .xcodeproj を生成（Mintfile 固定の XcodeGen）
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@echo "==> generate-central: Mintfile 固定の XcodeGen で .xcodeproj を生成します"
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && mint run yonaskolb/XcodeGen xcodegen generate )
+	@echo "==> generate-central: 完了 ($(CENTRAL_DIR)/$(APP_NAME))"
+
+format: ## Central の Swift を整形（Mintfile 固定の SwiftFormat）
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@echo "==> format: SwiftFormat で整形します"
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && mint run nicklockwood/SwiftFormat swiftformat . )
+	@echo "==> format: 完了"
+
+format-check: ## Central の Swift 整形を検査（未整形なら失敗）
+	@command -v mint >/dev/null 2>&1 || brew install mint
+	@( cd "$(CENTRAL_DIR)/$(APP_NAME)" && mint run nicklockwood/SwiftFormat swiftformat --lint . )
 
 # ============================================================
 # 確認（setup 後、実機をつないで試す）
@@ -129,9 +157,23 @@ capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshar
 	@echo "  docs/TROUBLESHOOTING.md の 'make capture' の節を参照してください。"
 	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
 
-clean: ## ビルド成果物を削除
+open-central: generate-central ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
+	@proj="$$(ls -d $(CENTRAL_DIR)/$(APP_NAME)/*.xcworkspace $(CENTRAL_DIR)/$(APP_NAME)/*.xcodeproj 2>/dev/null | head -n1 || true)"; \
+	if [ -z "$$proj" ]; then \
+		echo "ERROR(open-central): Xcode プロジェクトが見つかりません（generate-central に失敗）。" >&2; \
+		exit 1; \
+	fi; \
+	echo "==> open-central: $$proj を開きます"; \
+	echo "    Central 実装（CentralViewController）で、peripheral_uart 搭載の DK へ"; \
+	echo "    scan→connect→discoverServices→discoverCharacteristics→setNotifyValue/writeValue を実行してください。"; \
+	open "$$proj"
+
+clean: ## ビルド成果物・生成物を削除（追跡対象の central ソースは残す）
 	-@$(MAKE) -C $(SUBMODULE_DIR) clean
 	@rm -rf "$(CURDIR)/build"
+	@rm -rf "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME).xcodeproj" \
+	        "$(CENTRAL_DIR)/$(APP_NAME)/$(APP_NAME)/Info.plist"
 	@echo "==> clean: 完了"
 
-.PHONY: help init setup flash-blinky flash-peripheral verify-peripheral capture clean
+.PHONY: help init setup generate-central format format-check \
+        flash-blinky flash-peripheral verify-peripheral capture open-central clean
