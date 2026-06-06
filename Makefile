@@ -4,9 +4,10 @@
 #   make setup            検証環境の基盤を組み上げる（実機不要・冪等）
 #   make flash-blinky     ① 開発キット: blinky を焼いて LED 点滅を見る
 #   make flash-peripheral ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査
+#   make capture          ② アナライザ: ドングルに Sniffer を焼き Wireshark で観測
 #
 # nRF ハード固有の工程は submodule external/nrf52840-ble-debug-bootstrap へ委譲する。
-# 残りの各コマンド（capture / open-central）は後続の PR で追加する。
+# 残りの各コマンド（open-central）は後続の PR で追加する。
 # 設計の詳細は docs/DESIGN-001.md を参照。
 # 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（対象外）。
 # ============================================================
@@ -88,9 +89,49 @@ flash-peripheral: init ## ① 開発キット: peripheral_uart を焼き、続�
 verify-peripheral: init ## ① 開発キット: peripheral_uart の往復(上り/下り)だけを対話検査
 	@bash "$(CURDIR)/scripts/verify-peripheral.sh" "$(SUBMODULE_DIR)"
 
+capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshark で DK↔iPhone を観測
+	@echo "==> capture: ドングルへ Sniffer FW を書き込みます（Open Bootloader 確認あり）"
+	$(MAKE) -C $(SUBMODULE_DIR) flash-sniffer-dongle
+	@echo "==> 前提を自動確認します: DK が peripheral_uart で起動しているか（DK をリセットします）"
+	-@$(MAKE) --no-print-directory -C $(SUBMODULE_DIR) uart-fwcheck
+	@echo "==> Wireshark を起動します。次の手順で DK↔iPhone の各フェーズを観測してください:"
+	@echo ""
+	@echo "  1) インターフェイス 'nRF Sniffer for Bluetooth LE' をダブルクリックして捕捉を開始。"
+	@echo ""
+	@echo "  2) Sniffer ツールバーを表示: メニュー View > Interface Toolbars > nRF Sniffer。"
+	@echo ""
+	@echo "  3) DK を広告状態にする: iPhone 側を Disconnect にする。Wireshark のフィルタに"
+	@echo "     frame contains \"Nordic_UART_Service\"  を入れて、行が出れば広告中であることを確認できる。"
+	@echo ""
+	@echo "  4) ツールバーの Device で 'Nordic_UART_Service' を選択する。"
+	@echo ""
+	@echo "  5) iPhone の nRF Connect で 'Nordic_UART_Service' に Connect する。"
+	@echo ""
+	@echo "  6) 直後の Wireshark の一覧は 'Empty PDU' で埋まる。"
+	@echo ""
+	@echo "  7) Wireshark のフィルタ欄で  btatt  と打って Enter を押す。Empty PDU が消え、ATT だけが残る。"
+	@echo ""
+	@echo "  8) Wireshark の Info 列を上から読む。"
+	@echo "       MTU 交渉の確認"
+	@echo "         - 'Exchange MTU Request/Response'        … と記載があれば確認完了"
+	@echo "       サービス探索の確認"
+	@echo "         - 'Read By Group Type Request/Response'  … と記載があれば確認完了"
+	@echo "       特性・Descriptor の探索の確認"
+	@echo "         - 'Read By Type' / 'Find Information'     … と記載があれば確認完了"
+	@echo ""
+	@echo "  『観測手段の確立』は完了です。"
+	@echo ""
+	@echo "  9)（任意）iPhone で 'Nordic UART Rx' に hello を Write すると、Wireshark の一覧に"
+	@echo "     'Sent Write Request' が出る。その行を選び、詳細ペインの 'Bluetooth Attribute Protocol'"
+	@echo "     を展開すると 'Value' に送ったバイト列（hello = 68 65 6c 6c 6f）が見える。"
+	@echo ""
+	@echo "  うまくいかない時（Sniffer が一覧に出ない / Device に DK が出ない 等）は"
+	@echo "  docs/TROUBLESHOOTING.md の 'make capture' の節を参照してください。"
+	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
+
 clean: ## ビルド成果物を削除
 	-@$(MAKE) -C $(SUBMODULE_DIR) clean
 	@rm -rf "$(CURDIR)/build"
 	@echo "==> clean: 完了"
 
-.PHONY: help init setup flash-blinky flash-peripheral verify-peripheral clean
+.PHONY: help init setup flash-blinky flash-peripheral verify-peripheral capture clean
