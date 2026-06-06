@@ -49,6 +49,9 @@ targets:
       properties:
         CFBundleDisplayName: CoreBluetoothCentralGuide
         ITSAppUsesNonExemptEncryption: false
+        # Core Bluetooth を使うには Bluetooth 使用許可の宣言が必須。
+        # これが無いと iOS は許可プロンプトを出さず、Central は scan できない。
+        NSBluetoothAlwaysUsageDescription: "周辺の BLE 機器（peripheral_uart 搭載の開発キット）に接続し、Core Bluetooth の通信を観測するために使用します。"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
