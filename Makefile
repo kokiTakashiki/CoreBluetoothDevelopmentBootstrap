@@ -146,6 +146,13 @@ capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshar
 	@echo "       → GATT Discovery(ATT Read By Group Type / Read By Type)。"
 	@echo "     表示フィルタを  btatt  にすると GATT のやり取りだけに絞れる。"
 	@echo "  これら 4 フェーズが並べば『観測手段の確立』は完了です。"
+	@echo ""
+	@echo "  困ったら:"
+	@echo "   - 一覧に 'nRF Sniffer for Bluetooth LE' が出ない →"
+	@echo "       ① ドングルを挿し直す ② FW を焼き直す（ブートローダ＝赤点滅にして make capture を再実行）"
+	@echo "       ③ Wireshark を再起動 ④ それでも駄目なら Mac を再起動（extcap/USB シリアルのスタック解消）。"
+	@echo "   - Device に 'Nordic_UART_Service' が出ない → DK が広告していない。"
+	@echo "       iPhone を切断する／DK が peripheral_uart か確認（シリアルに Starting Nordic UART service example）。"
 	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
 
 open-central: generate-central ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
