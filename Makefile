@@ -128,11 +128,24 @@ flash-peripheral: init ## ① 開発キット: peripheral_uart を焼き、続�
 verify-peripheral: init ## ① 開発キット: peripheral_uart の往復(上り/下り)だけを対話検査
 	@bash "$(CURDIR)/scripts/verify-peripheral.sh" "$(SUBMODULE_DIR)"
 
-capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
+capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshark で DK↔iPhone を観測
 	@echo "==> capture: ドングルへ Sniffer FW を書き込みます（Open Bootloader 確認あり）"
 	$(MAKE) -C $(SUBMODULE_DIR) flash-sniffer-dongle
-	@echo "==> Wireshark を起動します。'nRF Sniffer for Bluetooth LE' を選び、"
-	@echo "    DK↔iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery を観測してください。"
+	@echo "==> Wireshark を起動します。次の手順で DK↔iPhone の各フェーズを観測してください:"
+	@echo ""
+	@echo "  前提) DK は peripheral_uart が動いていること（未/別ファームなら make flash-peripheral）。"
+	@echo "        ※ DK が blinky 等だと NUS を広告せず、何も観測できません。"
+	@echo "  1) インターフェイス 'nRF Sniffer for Bluetooth LE' をダブルクリックして捕捉を開始。"
+	@echo "  2) Sniffer ツールバーを表示: メニュー View > Interface Toolbars > nRF Sniffer。"
+	@echo "  3) DK を広告状態にする: iPhone 側を一旦 Disconnect（接続中だと DK は広告を止める）。"
+	@echo "     表示フィルタに  frame contains \"Nordic_UART_Service\"  を入れて、行が出れば広告中。"
+	@echo "     （Source 列のアドレスがその DK。Adv Hop は 37,38,39 にしておくと取りこぼしにくい）"
+	@echo "  4) ツールバーの Device で 'Nordic_UART_Service' を選択（その DK だけを追跡する）。"
+	@echo "  5) iPhone の nRF Connect で 'Nordic_UART_Service' に Connect。一覧に順に並ぶ:"
+	@echo "       Advertise(ADV_IND) → Connect(CONNECT_IND) → MTU/Data Length 交渉(LL_LENGTH/ATT MTU)"
+	@echo "       → GATT Discovery(ATT Read By Group Type / Read By Type)。"
+	@echo "     表示フィルタを  btatt  にすると GATT のやり取りだけに絞れる。"
+	@echo "  これら 4 フェーズが並べば『観測手段の確立』は完了です。"
 	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
 
 open-central: generate-central ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
