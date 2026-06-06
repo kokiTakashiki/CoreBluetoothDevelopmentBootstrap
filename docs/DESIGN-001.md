@@ -1,145 +1,357 @@
-# DESIGN-001 環境構築 Makefile 設計書
+# DESIGN-001 Core Bluetooth（BLE）検証環境 構成設計書
 
-> Core Bluetooth 検証環境を冪等に構築する自動化レイヤの設計
+> iOS Central 開発者のための BLE 検証環境を、submodule 構成で自動構築する設計
 >
 > | 項目 | 内容 |
 > | --- | --- |
 > | Doc ID | DESIGN-001 |
-> | 日付 | 2026-06-02 |
-> | 対象 | Apple Silicon Mac |
+> | 日付 | 2026-06-03 |
+> | 対象ホスト | Apple Silicon Mac |
 
-**スコープ:** nRF Connect SDK、Wireshark、nRF Sniffer、Python 依存、ファームウェア書き込みまでの一連の環境構築を Make ターゲットとして定義する。
+## 目次
 
-**対象外:** Xcode および iOS 実機署名の自動化は対象外とする。Apple の署名フローは GUI 操作と手動承認を要するため、Make の冪等性が保証できないことが理由である。
+- [1. 背景と目的](#1-背景と目的)
+- [2. Make ターゲット設計](#2-make-ターゲット設計)
+- [3. 全体アーキテクチャ](#3-全体アーキテクチャ)
+- [4. リポジトリ構成](#4-リポジトリ構成)
+- [5. 3 フェーズ設計](#5-3-フェーズ設計)
+- [6. 機械検証と人間検証の境界](#6-機械検証と人間検証の境界)
+- [意思決定ログ](#意思決定ログ)
+- [付録](#付録)
 
-## 章立て
+## 1. 背景と目的
 
-| No | 章 | 目標規定文 |
-| --- | --- | --- |
-| 1 | 概要 | 本設計書が定義する対象と、Makefile を採用する理由を述べる。 |
-| 2 | 冪等性の定義と担保方式 | 本設計における冪等性の定義と、それを Make でどう実現するかを述べる。 |
-| 3 | ターゲット設計 | 各 Make ターゲットの責務と依存関係を定義する。 |
-| 4 | 変数とガード設計 | 環境差を吸収する変数と、再実行時の安全性を担保するガード条件を定義する。 |
-| 5 | 依存グラフ | ターゲット間の依存関係を有向グラフとして示す。 |
-| 6 | 失敗時の挙動 | 各ターゲットが失敗した場合の回復方針を定義する。 |
-| 7 | 結論 | 本設計の要点と、実装フェーズへの引き継ぎ事項をまとめる。 |
-| — | 意思決定ログ | 解決した選択を一元的に記録し、二度蒸し返さない。 |
+本リポジトリ `CoreBluetoothDevelopmentBootstrap` は、**Core Bluetooth の検証環境を `make` 一つで用意するリポジトリ**である。
 
-## 1. 概要
+iOS Central 開発者にとっての「BLE 検証環境」は、次の三者が揃って初めて成立する。
 
-本設計書は、Core Bluetooth 検証環境の構築を Make ターゲットとして定義し、何度実行しても同一の最終状態に収束する自動化レイヤを設計するものである。
+1. **被検証側** — 接続相手となる BLE Peripheral
+2. **観測手段** — 通信を可視化する Sniffer
+3. **検証主体** — 自分が書く Core Bluetooth の Central 実装
 
-Make を採用する理由は三点ある。第一に、ターゲット間の依存関係を宣言的に記述でき、必要なタスクのみが実行される点。第二に、シェルスクリプトの羅列と比較して、再実行時の差分制御を構造的に表現できる点。第三に、追加のランタイムを要さず、macOS に標準搭載される点である。
+この三者は次の図で示す関係にある。
 
-## 2. 冪等性の定義と担保方式
+```mermaid
+flowchart LR
+    central["③ 検証主体<br/>自作 Central（iOS アプリ）"]
+    peripheral["① 被検証側（DUT）<br/>BLE Peripheral"]
+    sniffer["② 観測手段<br/>Sniffer ＋ Wireshark"]
 
-本設計における冪等性とは「同一の入力に対し、Make ターゲットを何度実行しても最終状態が変化しない」ことと定義する。これを担保する方式は、各ターゲットの冒頭で現在状態を検査し、目標状態と一致する場合は副作用のある処理を実行しないことである。
+    central <==>|"BLE で接続・通信"| peripheral
+    central -.->|"電波を捕捉"| sniffer
+    peripheral -.->|"電波を捕捉"| sniffer
 
-| ガード条件 | 判定方法 | 効果 |
-| --- | --- | --- |
-| ツール存在検査 | `command -v` または対応するバージョン問い合わせコマンドの終了コード | 導入済みなら導入処理をスキップ |
-| ファイルハッシュ比較 | 配置元と配置先の `shasum` を比較 | 一致時は再配置しない |
-| ビルド差分検査 | `west build` のインクリメンタル機構 | ソース未変更時は再コンパイルしない |
-| デバイス接続検査 | シリアルポート / J-Link の存在確認 | 未接続時は明示エラーで即停止 |
+    subgraph legend["凡例"]
+        direction LR
+        L1[" "] ==>|"BLE 接続・通信"| L2[" "]
+        L3[" "] -.->|"電波の傍受"| L4[" "]
+    end
+```
 
-> ファームウェア書き込みは厳密には非冪等な操作である。ただし、同一ファームウェアの再書き込みはデバイスの結果状態を変えないため、本設計では実質的に冪等とみなす（→ 意思決定ログ DL-1）。
+<p align="center"><sub>図 1 — 検証主体 ③ の Central が 被検証側 ① の Peripheral へ BLE で接続して通信し、その電波を 観測手段 ② の Sniffer が傍受して可視化する。</sub></p>
 
-## 3. ターゲット設計
+本リポジトリでは、この三者を `make` でまとめて用意する。1 と 2 にあたる nRF ハード固有の立ち上げは submodule という独立リポジトリに閉じ、このリポジトリは三者を 3 フェーズとしてまとめる役と Central 実装の足場を担う。狙いは次の表で示す三点。
 
-すべてのターゲットは `.PHONY` 指定とし、同名ファイルの有無に挙動が左右されないようにする。**既定ゴールは副作用を持たない `help`** とし、導入・ビルド・実機書き込みを伴う `setup` は明示的に `make setup` と打たせる（→ 意思決定ログ DL-3）。
+| 狙い | 内容 |
+| --- | --- |
+| **名実の一致** | 「Core Bluetooth 検証環境」を名乗るにふさわしい、Central 実装までを含む全体を提供する。 |
+| **関心の分離** | NCS ツールチェーン・ファームウェアビルド・書き込み・Sniffer という nRF ハードの面倒は submodule に閉じ、独立して再利用・進化できる。 |
+| **置き換え可能性** | 将来 Peripheral を別ボードや市販の BLE デバイスといった別ハードに差し替えても、このリポジトリ側の 3 フェーズ構造は不変。 |
 
-| ターゲット | 依存先 | 責務 | 冪等性の担保 |
+<p align="center"><sub>表 1 — 二分割の狙いである名実の一致・関心の分離・置き換え可能性。</sub></p>
+
+## 2. Make ターゲット設計
+
+この `make` の使い方は、大きく **「最初に一回やる準備」** と **「そのあと何度でもやる、この環境でできること」** の二段階に分かれる。この使い勝手こそが最重要の設計対象である。
+
+**準備は `make setup` の一回だけである。** `setup` は検証に必要なものを全部まとめて用意する。具体的には、nrfutil や Wireshark 等のツールの導入、nRF Connect SDK の取得、開発キットへ書き込む blinky と peripheral_uart の 2 種類のファームウェアのビルド、Sniffer を Wireshark から使うためのプラグイン配置、そして Xcode の Central プロジェクトの生成までを含む。この準備には実機もマウス操作も要らず、パソコン上で完結する。何度実行しても同じ冪等な状態に行き着くため、途中で失敗しても、設定を変えても、`make setup` を打ち直せば済む。
+
+**準備が終わったら、実機をつないで、この環境でできることを個別のコマンドで試す。** コマンドは次の 4 つである。
+
+- `make flash-blinky` — 開発キットをまず全消去して LED を消灯させ、消灯を確認してから blinky を書き込み、LED が点滅に変わるのを見る。消灯から点滅への変化を観測することで、書き込みが効いたと確かめられる（既に点滅していると書き込み前後で見分けがつかないため、消灯を起点に差分を作る）。
+- `make flash-peripheral` — 開発キットに peripheral_uart を書き込み、続けて**往復を対話で検査する**。peripheral_uart は BLE(NUS) と開発キットのシリアルを橋渡しするだけで自分からは何も送らないため、検査は人手の往復で確かめる。各ステップは実行コマンドを見せて y/N で進め、上り（Mac から開発キットのシリアルへ `world` を送り、iPhone の TX 通知に出るか）と下り（iPhone から RX へ `てすと` を Write し、開発キットのシリアルに出るか）を順に確認する。シリアルのポート識別・送受信という機器操作は submodule へ委譲し、誘導は親が担う。検査だけをやり直したいときは `make verify-peripheral` を単体で実行する。非対話／CI では検査をスキップする。
+- `make capture` — ドングルに Sniffer を書き込み、Wireshark で電波上のやり取りを覗く。
+- `make open-central` — Xcode プロジェクトを開き、自分で書いた Central アプリを動かす。
+
+**この 4 つに決まった実行順序はない。** どれから始めてもよく、同じものを何度繰り返してもよい。たとえば「peripheral_uart を書き込み直して、もう一度キャプチャを取り直す」「Central アプリを直して、また開いて試す」といったことを、好きな順で何度でもできる。ビルドは `setup` で済ませてあるため、これらのコマンドは「書き込む」「開く」だけを担い、すぐ動く。
+
+実装上は、このリポジトリが submodule へ `$(MAKE) -C external/nrf52840-ble-debug-bootstrap <target>` で委譲し、submodule の冪等性をそのまま受け継ぐ。実機への書き込みと GUI 起動は `setup` には一切含めず、これらのコマンド側の役割とする。
+
+### 2.1 ターゲット一覧
+
+| 区分 | ターゲット | 委譲先 / 動作 | 責務 |
 | --- | --- | --- | --- |
-| `help` | — | **既定ゴール。** 各ターゲットの `## 注記` から一覧を自動生成して表示する。副作用を持たない。 | 読み取り専用。状態を変更しない。 |
-| `setup` | check-os, install-tools, build-firmware | **ソフトウェア環境構築（実機不要）。** 前提確認→ツール導入→ファームウェアビルドまでをソフト工程のみで一括実行する（明示呼び出し）。実機書き込みは `deploy`、検証は `verify` が担う（→ DL-9）。各依存ターゲットが個別に冪等であるため setup の再実行も冪等。 | 依存先がすべて冪等であることに依存する。setup 自体は状態を持たない。 |
-| `deploy` | flash-dk, flash-sniffer-dongle | **実機へファームウェアを書き込む（要 DK＋ドングル接続）。** 書き込み（副作用あり）のみを担い、検証は読み取り専用の `verify` に分離する（→ DL-9）。非並列 make では prerequisite が左→右順に実行されるため flash-dk→flash-sniffer-dongle の順に走る。検証まで続けたい場合は `make deploy verify` と並べて指定する。 | 依存先がすべて（実質）冪等であることに依存する。deploy 自体は状態を持たない。 |
-| `check-os` | — | 実行環境が Apple Silicon Mac であることを確認する。`uname -m` が arm64 を返すこと、Homebrew が存在することを検査する。 | 読み取り専用の検査のみ。本質的に冪等。 |
-| `install-nrfutil` | check-os | nrfutil 本体を Nordic 公式 arm64 バイナリの直接取得で導入する（最も壊れやすい工程を独立化し、CI が本工程だけを実機検証できるようにする → DL-4, DL-6）。 | 判定を `nrfutil --version` の終了コードで行い、壊れた symlink を誤検出しない。導入済みならスキップ。 |
-| `install-tools` | install-nrfutil | nrfutil サブコマンド(toolchain-manager / device) / NCS Toolchain / Wireshark / Python 依存(west) / **nrfjprog ＋ SEGGER J-Link** を導入する。各ツールの導入有無を事前検査し、未導入のもののみ導入する。nrfjprog ＋ J-Link は `flash-dk` の J-Link 書き込みに必須（→ DL-11）。ドングルの DFU 書き込みは `device program` で行うため、旧 `nrf5sdk-tools` は導入しない（→ DL-12）。 | 導入前に存在検査。導入済みならスキップし重複導入が発生しない。nrfutil 本体の判定は `nrfutil --version`、nrfjprog は `nrfjprog --version`、各 nrfutil サブコマンドは `nrfutil <cmd> --help` の終了コードで行い、壊れた symlink を誤検出しない。 |
-| `install-sniffer` | install-tools | nRF Sniffer の extcap プラグインを Wireshark のプラグインディレクトリへ配置する。`nrfutil install ble-sniffer` → `nrfutil ble-sniffer bootstrap --extcap-dir` で shim を配置する（→ DL-12）。 | ble-sniffer 導入は `nrfutil ble-sniffer --help` の終了コードでガード。bootstrap は同一 shim を再配置するため実質冪等。 |
-| `fetch-ncs` | install-tools | nRF Connect SDK のソースツリー（`nrf/`・`zephyr/`・`samples/` 等）を `west init` + `west update` で `$(NCS_BASE)` に取得する。`install-tools` はツールチェインのみを入れソースを取得しないため、`build-firmware` が要する `SAMPLE_DIR` を本ターゲットが供給する（→ DL-7）。数 GB のダウンロードを伴う。 | `SAMPLE_DIR` か west workspace（`$(NCS_BASE)/.west`）の存在を検査し、取得済みならスキップする。 |
-| `build-firmware` | install-tools, fetch-ncs | peripheral_uart サンプルをビルドする。ソースツリーは `fetch-ncs` が事前取得する。 | `west build` のインクリメンタルビルド機構に委ねる。ソース未変更時は再コンパイルしない。 |
-| `flash-dk` | build-firmware | ビルド済みファームウェアを開発キットへ書き込む。J-Link を検出し、未接続時は明示エラーで停止する。 | 同一ファームウェアの再書き込みは結果状態を変えないため実質冪等。 |
-| `flash-sniffer-dongle` | install-sniffer | USB ドングルへ nRF Sniffer ファームウェアを書き込む。Open Bootloader 経由の DFU を用いる。ble-sniffer 同梱の署名付き DFU zip を `nrfutil device program --firmware <zip> --traits nordicDfu` で書き込む（→ DL-12）。 | 同一ファームウェアの再書き込みは結果を変えない（実質冪等）。事前に `nrfutil device list --traits nordicDfu` で台数を確認し、0 台は明示エラー、複数台は `SERIAL_PORT`（シリアル番号）を促す。 |
-| `verify` | —（実行時にサブ実行） | フルフローの入口。まず `[y/N]` 確認を出し、`y` のときだけ `deploy`（実機書き込み）を実行する。その後、DK が BLE Peripheral として広告していること・Wireshark に Sniffer インタフェースが出現していることを検査する（→ DL-10）。`y` 以外なら書き込みをスキップして現在の状態を検査する。 | 検査自体は読み取り専用。書き込みは確認（既定 N）を経た場合のみ実行する。`deploy` を make 依存ではなくレシピ内サブ実行で呼ぶため、確認をフラッシュ前に出せる。 |
-| `clean` | — | ビルド成果物を削除する。導入済みツールや書き込み状態には干渉しない。 | 対象が存在しない場合も `rm -rf` により正常終了する。 |
+| — | `help` | — | 既定ゴール。`## 注記`から一覧を自動生成。副作用なし。 |
+| 準備 | `init` | `git submodule update --init` | `setup` が内部で呼ぶ、submodule の取得・更新。 |
+| 準備 | `setup` | submodule の `setup` ＋ `build-firmware`(blinky) ＋ `install-sniffer` ＋ `generate-central` | **検証に必要なものを全部用意する。** 実機/GUI 不要・冪等。 |
+| 準備 | `generate-central` | 同梱 `project.yml` を Mintfile 固定の XcodeGen で生成 | `setup`／`open-central` から呼ばれ、iOSAppTemplate 非依存で Central の `.xcodeproj` を生成する。 |
+| 整形 | `format` ／ `format-check` | Mintfile 固定の SwiftFormat | Central の Swift を整形／検査する。設定は `.swiftformat`。任意。 |
+| できること① 開発キット | `flash-blinky` | submodule の `build-firmware`(blinky) → `erase-dk` → 一時停止 → `flash-dk`(blinky) | 全消去で消灯させ、消灯確認の一時停止を挟んでから blinky を焼く。消灯→点滅の差分で書き込み成功を確かめる。非対話/CI では停止せず進む。 |
+| できること① 開発キット | `flash-peripheral` | submodule の `flash-dk` → 親 `verify-peripheral` | peripheral_uart を焼き、続けて往復を対話検査する。 |
+| 検査① 開発キット | `verify-peripheral` | 親 `scripts/verify-peripheral.sh`（submodule の `uart-port`/`uart-send`/`uart-capture` を委譲） | 往復だけを対話検査（上り: `world` 送信／下り: `てすと` 受信表示）。各段は実行コマンド提示＋ y/N。非対話/CI ではスキップ。 |
+| できること② アナライザ | `capture` | submodule の `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| できること③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
+| — | `verify` | submodule の `verify` | 読み取り専用＋[y/N]書込確認の機械検査。 |
+| — | `clean` | submodule の `clean` ＋ このリポジトリの `build/` 削除 | central プロジェクトは残し、ビルド成果物を削除。 |
 
-## 4. 変数とガード設計
+<p align="center"><sub>表 2 — make ターゲット一覧。区分・委譲先・責務を示す。</sub></p>
 
-環境差を吸収する変数。いずれもコマンドライン引数での上書きを許容し、未指定時は安全側の既定値を採る。
+### 2.2 準備と「この環境でできること」のグラフ
 
-| 変数 | 既定値 | 用途 |
-| --- | --- | --- |
-| `NCS_VERSION` | `v2.6.1` | nRF Connect SDK のバージョン固定。バージョン不整合に起因するビルド失敗を防ぐ。 |
-| `BOARD` | `nrf52840dk_nrf52840` | ビルド対象ボードの指定。 |
-| `SNIFFER_DONGLE_FW` | `~/.nrfutil/share/nrfutil-ble-sniffer/firmware/sniffer_nrf52840dongle_nrf52840_*.zip` | ドングル書き込み用 Sniffer ファームウェア（DFU zip）。`nrfutil ble-sniffer` が同梱し、バージョンに追随（→ DL-12）。 |
-| `WIRESHARK_EXTCAP_DIR` | `~/.local/lib/wireshark/extcap` | extcap プラグインの配置先（macOS のユーザー領域パス）。`nrfutil ble-sniffer bootstrap --extcap-dir` に渡す。 |
-| `SERIAL_PORT` | 自動検出 | 書き込み対象ドングルのシリアル番号（`device program --serial-number`）。未指定時は `nordicDfu` トレイトで自動検出し、複数検出時はエラーで停止する。旧来の tty パスではない（→ DL-12）。 |
-
-## 5. 依存グラフ
-
-矢印は「依存元 → 依存先」を表し、依存先が先に実行される。`help` は既定ゴールだが依存を持たない独立ノードである。
+`make setup` が 4 つの準備ステップへ扇状に展開し、各コマンドは独立に submodule へ委譲する。
 
 ```mermaid
 graph TD
-    help["help（既定ゴール）"]
-    setup --> check-os
-    setup --> install-tools
-    setup --> build-firmware
-    deploy --> flash-dk
-    deploy --> flash-sniffer-dongle
-    verify -. "y 確認時のみ\n(レシピ内サブ実行)" .-> deploy
-    install-nrfutil --> check-os
-    install-tools --> install-nrfutil
-    install-sniffer --> install-tools
-    fetch-ncs --> install-tools
-    build-firmware --> install-tools
-    build-firmware --> fetch-ncs
-    flash-dk --> build-firmware
-    flash-sniffer-dongle --> install-sniffer
+    subgraph build["準備（make setup / 実機・GUI 不要・冪等）"]
+        setup["make setup"]
+        setup --> s1["submodule setup<br/>ツール導入＋NCS＋peripheral_uart ビルド"]
+        setup --> s2["submodule build-firmware<br/>blinky ビルド"]
+        setup --> s3["submodule install-sniffer<br/>extcap 配置"]
+        setup --> s4["generate-central<br/>project.yml を xcodegen で .xcodeproj 化"]
+    end
+
+    subgraph play["この環境でできること（実機をつないで個別に実行・順不同）"]
+        fb["make flash-blinky"] --> p1["submodule erase-dk（消灯）→ 消灯確認の一時停止 → flash-dk（blinky 点滅）"]
+        fp["make flash-peripheral"] --> p2["submodule flash-dk"]
+        cap["make capture"] --> p3["submodule flash-sniffer-dongle → Wireshark 起動"]
+        oc["make open-central"] --> p4["open *.xcodeproj"]
+    end
 ```
 
-## 6. 失敗時の挙動
+<p align="center"><sub>図 2 — make setup が 4 つの準備ステップへ展開し、各コマンドは独立に submodule へ委譲する。</sub></p>
 
-失敗時は副作用を残さず即停止し、再実行により回復可能な状態を保つ。
+### 2.3 冪等性と実行順序
 
-| ターゲット | 失敗条件 | 回復方針 |
+- `setup` の各ステップは submodule のガードと `generate-central` の存在検査という状態検査つきで冪等。再実行は同一状態へ収束する。
+- 各コマンドは**独立・再入可能**で、決まった順序を持たない。FW の再書き込みは結果状態を変えないため実質冪等。`open-central` は何度開いてもよい。`generate-central` は同梱 `project.yml` から `xcodegen` で `.xcodeproj` を何度でも冪等に再生成できる。
+
+## 3. 全体アーキテクチャ
+
+### 3.1 リポジトリ二分割
+
+| リポジトリ | 役割 | 提供物 |
 | --- | --- | --- |
-| `check-os` | arm64 でない、または Homebrew 不在 | 明示メッセージを出力し即停止。後続を実行しない。 |
-| `install-tools` | ネットワーク断、バージョン取得失敗 | 失敗ツール名を表示。再実行で導入済み分はスキップし未導入分のみ再試行。 |
-| `fetch-ncs` | `west init` / `west update` がネットワーク断・manifest 不在で失敗 | ネットワーク / manifest（`--mr $(NCS_VERSION)`）確認と Nordic 公式手順 URL を案内。途中失敗時は `$(NCS_BASE)` を削除して再実行する旨を提示。 |
-| `build-firmware` | サンプル不在（NCS ソース未取得）／SDK と Toolchain のバージョン不整合 | サンプル不在時は `make fetch-ncs` の実行・手動 west コマンド例・公式手順 URL を案内。ビルド失敗時は west のエラーログと `NCS_VERSION` の固定値を確認する旨を案内。 |
-| `flash-dk` | 開発キット未接続、シリアルポート曖昧 | 検出結果を表示し停止。`SERIAL_PORT` の明示指定を促す。 |
-| `verify` | 広告未検出、Sniffer インタフェース不在 | どの検査が失敗したかを表示。フラッシュ未実施が疑われる場合は `make deploy`（flash 系ターゲット）の実行を案内。 |
+| **`CoreBluetoothDevelopmentBootstrap`** — このリポジトリ | Core Bluetooth 検証環境を `make` で用意する。3 フェーズをまとめ、Central 実装の足場まで用意する。 | Makefile、本設計書、project.yml＋Swift から成る Central のソース、submodule の取り込み |
+| **`kokiTakashiki/nrf52840-ble-debug-bootstrap`** — submodule | Peripheral と Sniffer から成る nRF52840 製の BLE デバッグ環境。NCS 導入・FW ビルド・実機書き込み・Sniffer を冪等に自動化する。 | 13 ターゲットの既存 Makefile、README、CI、LICENSE |
 
-## 7. 結論
+<p align="center"><sub>表 3 — リポジトリ二分割の役割と提供物。</sub></p>
 
-本設計の要点は、各ターゲットを状態検査つきの冪等な単位として定義し、依存グラフによって必要最小限の実行に限定することである。これにより、環境構築を何度繰り返しても同一の最終状態へ収束する。
+### 3.2 コンポーネント関係
 
-実装フェーズへの引き継ぎ事項:
+```mermaid
+flowchart TB
+    subgraph host["Apple Silicon Mac（ホスト）"]
+        direction TB
+        subgraph parent["リポジトリ: CoreBluetoothDevelopmentBootstrap（このリポジトリ）"]
+            mk["Makefile<br/>make の入口（3 フェーズ）"]
+            central["central/<br/>project.yml＋Swift ソース"]
+            subgraph sub["submodule: external/nrf52840-ble-debug-bootstrap"]
+                cmk["Makefile<br/>NCS / FW / 書き込み / Sniffer"]
+            end
+            mk -->|"make -C で委譲"| cmk
+            mk -->|"xcodegen generate"| central
+        end
+        xcode["Xcode<br/>Central アプリをビルド・実行"]
+        wireshark["Wireshark<br/>nRF Sniffer extcap"]
+        central -.->|開発者が開く| xcode
+    end
 
-1. ファームウェア書き込みの冪等性は物理的摩耗を無視する前提に立つため、頻繁な再書き込みを伴う運用では別途検討を要する（DL-1）。
-2. Xcode 側の署名フローは本 Makefile の対象外であり、手動手順として別途記録する必要がある。
+    subgraph devices["検証用デバイス"]
+        dk["nRF52840 DK（PCA10056）<br/>BLE Peripheral / DUT"]
+        dongle["MDBT50Q USB ドングル<br/>nRF Sniffer"]
+        iphone["iPhone<br/>nRF Connect for Mobile ＋ 自作 Central アプリ"]
+    end
+
+    cmk -->|"west flash（J-Link）"| dk
+    cmk -->|"nrfutil device program（DFU）"| dongle
+    xcode -->|"BLE Central として接続"| dk
+    iphone -->|"BLE 接続"| dk
+    dongle -->|"無線を捕捉"| wireshark
+    dk -.->|"Advertise / GATT"| dongle
+```
+
+<p align="center"><sub>図 3 — このリポジトリ・submodule・DK・ドングル・iPhone といった検証用デバイスの構成と、書き込み・接続・観測の経路。</sub></p>
+
+### 3.3 submodule を選ぶ理由
+
+取り込む方式は submodule とする。要点は、**submodule のコミットをこのリポジトリが明示的にピン留めでき、submodule が独立リポジトリとして単体でも使える**こと。
+
+## 4. リポジトリ構成
+
+```text
+CoreBluetoothDevelopmentBootstrap/        # このリポジトリ
+├── Makefile                              # make の入口（3 フェーズ）
+├── README.md                             # 使い方・コマンド一覧
+├── LICENSE                               # MIT
+├── .gitmodules                           # submodule の宣言
+├── docs/
+│   └── DESIGN-001.md                     # 本書（構成設計書）
+├── external/
+│   └── nrf52840-ble-debug-bootstrap/     # submodule
+│       ├── Makefile                      #   環境構築 Makefile（13 ターゲット）
+│       ├── README.md
+│       ├── LICENSE
+│       └── .github/workflows/idempotency.yml
+├── central/                              # Phase 3 用（Central のソースを同梱）
+│   ├── GUIDE.md                          #   Core Bluetooth 実装ガイド（教材）
+│   └── CoreBluetoothCentralGuide/                 #   project.yml ＋ Swift ソース（commit）
+│       ├── project.yml                   #     XcodeGen 定義（.xcodeproj の source of truth）
+│       ├── .swiftformat / Mintfile / .swift-version  #  整形設定・ツール SHA 固定・Swift ツールチェーン版（iOSAppTemplate 由来）
+│       └── CoreBluetoothCentralGuide/*.swift      #     AppDelegate/SceneDelegate/CentralViewController
+│           # .xcodeproj・Info.plist は xcodegen 生成・.gitignore
+└── .github/
+    └── workflows/                        # このリポジトリの機械ゲート（parse-lint など）
+```
+
+`.gitmodules` の宣言:
+
+```ini
+[submodule "external/nrf52840-ble-debug-bootstrap"]
+    path = external/nrf52840-ble-debug-bootstrap
+    url = https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap.git
+```
+
+## 5. 3 フェーズ設計
+
+検証は次の 3 フェーズを順に確定させる。各フェーズは「目的 → Makefile が自動化する範囲 → 人間が行う確認 → 完了条件」で定義する。**実機の目視や GUI 操作といった人間の確認はフェーズの完了条件には含むが、Makefile の責務には含めない**。詳細は [6 章](#6-機械検証と人間検証の境界)に示す。
+
+```mermaid
+flowchart LR
+    P1["Phase 1<br/>開発キット単体の動作確認<br/>（DUT を確定）"]
+    P2["Phase 2<br/>プロトコルアナライザ運用の確立<br/>（観測手段を確定）"]
+    P3["Phase 3<br/>Xcode で Central 最小実装<br/>（検証主体を確定）"]
+    P1 --> P2 --> P3
+```
+
+<p align="center"><sub>図 4 — 検証は 3 フェーズを順に確定させる。順序は DUT → 観測手段 → 検証主体。</sub></p>
+
+### 5.1 Phase 1 — 開発キット単体の動作確認
+
+**目的:** nRF52840 DK が正常な BLE Peripheral として動作する状態を確定する。
+
+| 手順 | Makefile の自動化 | 人間の確認 |
+| --- | --- | --- |
+| Nordic 公式 Getting Started に従い blinky を書き込み | ○ submodule の `erase-dk` で全消去 → 消灯確認の一時停止 → blinky を変数上書きした `flash-dk` | 消灯状態から LED が点滅に変わること |
+| Nordic UART Service の peripheral_uart を書き込み | ○ 既定サンプルである submodule の `flash-dk` | — |
+| nRF Connect for Mobile と開発キットのシリアルで文字列の往復を確認 | △ 半自動: `verify-peripheral` が**ポート識別・上り送信・下り受信表示**を機械化（115200 のシリアル送受信は機械が実行）。iPhone 側の Notify ON と Write は人手 | 上り: 送信した `world` が TX(6E400003) の通知に出る。下り: RX(6E400002) へ `てすと` を Write → 受信表示に `てすと` が出る |
+
+<p align="center"><sub>表 4 — Phase 1 の手順と、Makefile の自動化範囲および人間の確認。</sub></p>
+
+**blinky の実現という重要な設計判断:** submodule の Makefile の `build-firmware` / `flash-dk` は `SAMPLE_DIR` と `BUILD_DIR` を変数化している。blinky は NCS ソースツリー内の `zephyr/samples/basic/blinky` に存在するため、**submodule に新ターゲットを追加せず**、変数上書きだけで書き込める。
+
+```bash
+# flash-blinky / setup が内部で実行するイメージ
+$(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
+    SAMPLE_DIR='$(NCS_BASE)/zephyr/samples/basic/blinky' \
+    BUILD_DIR='$(CURDIR)/build/blinky'
+```
+
+これにより blinky 用ビルドが `build/` の peripheral_uart 用ビルドと別ディレクトリに分離され、両者が共存できる。
+
+**消灯を起点に差分を作る:** blinky は LED を点滅させるサンプルだが、開発キットが既に点滅状態だと書き込み前後で見た目が変わらず、書き込みが効いたか確かめられない。そこで `flash-blinky` は書き込みの前に全消去で LED を消灯させ、消灯を目視確認させる一時停止を挟んでから書き込む。消灯から点滅への変化が、書き込み成功の観測可能な証拠になる。全消去はデバイス操作（nrfjprog / J-Link）であり、その道具一式を持つ submodule 側の `erase-dk` ターゲットへ寄せる。誘導の一時停止という UX は親側に置く。一時停止は対話端末のときだけで、非対話（CI）では止めず通常書き込みする（D-12）。
+
+**peripheral_uart は橋渡し（自分からは送らない）:** このサンプルは BLE(NUS) と開発キットのシリアルを双方向に橋渡しするだけで、自動では何も送信しない。BLE 内でのエコーは無いため、ループは必ず BLE ↔ シリアルを経由する。よって往復は「シリアルへ送る／から受ける」操作が要る。手で `screen` を開く方法もあるが、ボーレートや終了キー操作で詰まりやすい。そこで `verify-peripheral` が**シリアルのポート識別・送信・受信を機械化**し、人手は iPhone 側（Notify ON・Write）だけに絞る。
+
+**往復検査の機械化と分担（D-13）:** ポート識別・送受信は開発キット（ホストの J-Link 仮想シリアル）に対するデバイス操作なので submodule の `uart-port`／`uart-send`／`uart-capture` に置き、対話誘導（実行コマンド提示＋ y/N、受信内容の表示）は親の `scripts/verify-peripheral.sh` に置く（`erase-dk` と同じ D-12 の分担）。ポートは SEGGER J-Link 配下の仮想シリアルを識別し、複数あるときは最小番号をコンソールとみなす（`UART_PORT` で上書き可）。取りこぼし防止のため、下り検査は Write を促す前に受信を開始しておく。非対話／CI では検査全体をスキップする（D-9 の機械／人間分離を保つ）。
+
+**完了条件:** blinky で消灯から LED 点滅への変化を確認し、peripheral_uart で `verify-peripheral` の往復、すなわち「上り: 送信した `world` が TX(6E400003) の通知に出る／下り: RX(6E400002) へ `てすと` を Write すると受信表示に `てすと` が出る」が取れること。これをもって被検証側を確定する。
+
+### 5.2 Phase 2 — プロトコルアナライザ運用の確立
+
+**目的:** 開発キットと iPhone の BLE 通信を観測できる状態を確定する。
+
+| 手順 | Makefile の自動化 | 人間の確認 |
+| --- | --- | --- |
+| ドングルに nRF Sniffer FW を書き込み | ○ submodule の `flash-sniffer-dongle` で DFU 実行。Open Bootloader への移行は [y/N] 確認つき | — |
+| Wireshark の extcap ディレクトリにキャプチャプラグインを配置 | ○ `nrfutil ble-sniffer bootstrap` を行う submodule の `install-sniffer` | — |
+| Wireshark のインタフェース一覧に「nRF Sniffer for Bluetooth LE」が出現することを確認 | △ submodule の `verify` が実施し、`tshark -D` に sniffer が現れるかを機械判定可 | Wireshark GUI 上での表示 |
+| Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズを観測 | × キャプチャの読解のため対象外 | 各フェーズがキャプチャに現れること |
+
+<p align="center"><sub>表 5 — Phase 2 の手順と、Makefile の自動化範囲および人間の確認。</sub></p>
+
+**完了条件:** Wireshark に Sniffer インタフェースが現れ、DK ↔ iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズが観測できること。これをもって観測手段を確定する。
+
+### 5.3 Phase 3 — Xcode で Central 最小実装
+
+**目的:** 自作の Core Bluetooth Central が、Phase 1 で確定した peripheral_uart 搭載 DK と一連の手順で通信できる状態を確定し、その通信を Phase 2 の Sniffer で裏取りする。
+
+| 手順 | Makefile の自動化 | 人間の確認 |
+| --- | --- | --- |
+| Xcode 新規プロジェクトを作成。雛形は [iOSAppTemplate](https://github.com/koki-mobile-studio/iOSAppTemplate) で一度生成し固定済み | ○ `generate-central`：同梱の `project.yml` を `xcodegen generate` で `.xcodeproj` 化 | — |
+| `CBCentralManager` / `CBCentralManagerDelegate` / `CBPeripheralDelegate` の最小実装 | ○ `CentralViewController.swift` に手順順のガイド付きで同梱。読み方は `central/GUIDE.md`。署名・実行は開発者 | コードを読み・実機で動かす |
+| `scan → connect → discoverServices → discoverCharacteristics → readValue/setNotifyValue` の一連動作 | × 実機ビルド・署名・実行のため対象外 | アプリ上で一連が流れること |
+| 同一通信を Wireshark で観測し、Swift 実装が出すバイト列を可視化 | × キャプチャの読解のため対象外 | Sniffer 上で Swift 由来のバイト列が見えること |
+
+<p align="center"><sub>表 6 — Phase 3 の手順と、Makefile の自動化範囲および人間の確認。</sub></p>
+
+接続先は Phase 1 で構築した peripheral_uart 搭載 DK とする。
+
+**Phase 3 のエンドツーエンドである Central の最小フロー:**
+
+```mermaid
+sequenceDiagram
+    participant App as iPhone Central（自作アプリ）
+    participant DK as nRF52840 DK（peripheral_uart）
+    participant Sniffer as MDBT50Q Sniffer → Wireshark
+
+    Note over DK,Sniffer: DK は NUS で Advertise 中。Sniffer は無線を傍受
+    DK-->>Sniffer: ADV_IND（Advertise）
+    App->>DK: scanForPeripherals → connect
+    DK-->>Sniffer: CONNECT_IND（Connect）
+    App->>DK: MTU 交渉
+    DK-->>Sniffer: Exchange MTU Req/Rsp
+    App->>DK: discoverServices / discoverCharacteristics
+    DK-->>Sniffer: GATT Discovery（Primary Service / Characteristics）
+    App->>DK: setNotifyValue(true) on TX
+    App->>DK: writeValue on RX
+    DK-->>App: notify（readValue / didUpdateValue）
+    DK-->>Sniffer: ATT Write / Handle Value Notification（バイト列）
+```
+
+<p align="center"><sub>図 5 — 自作 Central と DK の一連の通信である scan→connect→MTU→GATT→notify を Sniffer が傍受する。</sub></p>
+
+**完了条件:** 自作 Central が DK と上記フローを完走し、同じ通信が Wireshark 上でも観測できること。これをもって検証主体を確定し、Core Bluetooth 検証環境の構築を完了とする。
+
+**iOSAppTemplate の扱いという設計判断:** iOSAppTemplate は Genesis ベースのテンプレートで、XcodeGen `project.yml` を含むアプリ一式の雛形を生成する。これを**一度だけ**使って雛形を作り、その source of truth である `project.yml` と Swift ソースをこのリポジトリに固定する。**`make` 実行時に iOSAppTemplate へは依存しない**ため、テンプレが破壊的に変わっても影響を受けない。`make generate-central` は同梱の `project.yml` を `xcodegen generate` するだけ。追跡するのは `project.yml` と Swift ソースで、生成物である `.xcodeproj`・`Info.plist` は `.gitignore` する。ツールの XcodeGen と SwiftFormat は同梱 `Mintfile` で SHA 固定し Mint で実行する。`make format` で整形できる。
+
+## 6. 機械検証と人間検証の境界
+
+本設計は「事実に判定させる」方針に従い、**機械のみで完結する検証**と**人間に委ねる確認**を明示的に分離する。CI が回すのは前者だけである。
+
+| 区分 | 内容 | 担い手 |
+| --- | --- | --- |
+| CI の機械ゲート | このリポジトリの Makefile の全ターゲットが dry-run でパースできる／既定ゴールが副作用のない `help` である／`.gitmodules` の URL が宣言と一致する／submodule パスが存在する | GitHub Actions |
+| 実機・任意の機械検証 | submodule の `verify` で、`tshark -D` に Sniffer が出現するか、BLE トラフィックを検出できるかを判定 | 要実機の `make verify` |
+| 人間の確認 | LED 点滅・nRF Connect での文字列往復・Wireshark GUI 上のフェーズ観測・Xcode でのアプリ実行 | 開発者 |
+
+<p align="center"><sub>表 7 — 機械検証と人間検証の担い手の分離。</sub></p>
+
+> Phase 3 の Xcode ビルド・iOS 実機署名・アプリ実行は GUI と手動承認を要し、Make の冪等性が保証できないため自動化対象外とする。これは submodule の Makefile が Xcode を対象外としている方針を、このリポジトリでも踏襲するものである。
+
+> **CI の所在:** nRF Makefile の 13 ターゲットを検証するテストである `.github/workflows/idempotency.yml` は submodule 側に置き、対象 Makefile と同居させる。このリポジトリには別物の CI として、Makefile の dry-run パース ＋ `.gitmodules` の URL/パス整合チェックを置く。両者はターゲット体系が異なるため分離している。
 
 ## 意思決定ログ
 
-解決した選択を一元的に記録する。自律判断・エスカレーションを問わず、ここに集約して同じ論点を二度と蒸し返さない。
+解決した選択を一元的に記録する。同じ論点を二度蒸し返さない。
 
-| ID | 決定事項 | 理由 / 背景 | 種別 |
-| --- | --- | --- | --- |
-| DL-1 | ファームウェア書き込みを「実質冪等」とみなす | 同一 FW の再書き込みは結果状態を変えない。書き込み回数に依存する物理的摩耗は無視できるという前提に基づく（意見）。 | 設計前提 |
-| DL-2 | 各レシピを単一シェルチェーンに集約する | macOS 標準の GNU Make 3.81 は `.ONESHELL` / `.SHELLFLAGS` を非対応（3.82+ で追加）。レシピ行をまたいだシェル変数共有は壊れるため、検査ロジックを 1 シェルに閉じる。`gmake` 3.82+ でも整合。 | 実装制約 |
-| DL-3 | 既定ゴールを `setup` から `help` に変更する | 当初設計は「先頭ターゲット＝既定」の慣習に従い `setup` を既定にしていたが、素の `make` が導入・ビルド・**実機書き込み**まで一括実行するのは誤実行の事故リスクが高い。副作用のない `help` を既定にし、一括実行は明示 `make setup` に限定する。これはモダンな Makefile の慣習（self-documenting help）にも合致する。 | UX / 既定挙動（ユーザー承認済み） |
-| DL-4 | nrfutil を Homebrew cask ではなく Nordic 公式バイナリの直接取得で導入する | `brew install --cask nrfutil` は **deprecated かつ macOS Gatekeeper チェックに失敗**し、実体バイナリを伴わない壊れた symlink を残す（`brew` は「installed」と記録するが `nrfutil` は実行不可）。これにより `make setup` が `command not found` (Error 127) で失敗した。対策として、Nordic 公式 Artifactory (`files.nordicsemi.com`) の arm64 ネイティブバイナリを `curl -fL` で取得し、`chmod +x` + quarantine 除去のうえ `$(brew --prefix)/bin` へ配置する（sudo 不要）。導入判定は `command -v` ではなく `nrfutil --version` の終了コードで行い、壊れた symlink を「導入済み」と誤検出しない。 | 実装バグ修正（実機検証で発覚） |
-| DL-5 | ドングルの DFU を旧 `nrfutil pkg` / `nrfutil dfu` ではなく新 unified nrfutil の `nrf5sdk-tools` コマンドで行う | DL-4 で導入した新 unified nrfutil（arm64 公式バイナリ）には旧 pc-nrfutil の `pkg` / `dfu` サブコマンドが**存在しない**（別コマンド体系）。旧構文のままでは `flash-sniffer-dongle` が実機接続時に失敗する。Nordic は旧 pc-nrfutil（`pip install nrfutil`）を **deprecated** とし、当該機能は `nrfutil install nrf5sdk-tools` で導入する `nrfutil nrf5sdk-tools pkg generate` / `nrfutil nrf5sdk-tools dfu usb-serial` へ移行している。これは旧構文の 1:1 後継であり、既存ターゲットのシリアルポート自動検出・`SERIAL_PORT` 指定・複数検出エラーをそのまま温存できるため採用した。<br>**代替案:** Nordic 推奨の `nrfutil device program --firmware <zip> --traits nordicDfu`（DFU トレイトで自動探索、ポート指定不要）。`pkg generate` は同じく `nrf5sdk-tools` が必要。今回は tty ポート検出ロジックの維持と最小差分を優先し不採用。<br>**前提:** ドングルは RESET ボタンで Open Bootloader(LED 赤点滅)に入り `/dev/tty.usbmodem*` で列挙される。ブートローダは raw hex を受け付けないため、必ず署名付き DFU zip に変換してから転送する。<br>一次情報: nRF Sniffer programming ([docs.nordicsemi.com](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html)) / nrf5sdk-tools install・pkg・dfu ([install](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-nrf5sdk-tools/guides/installing.html) / [pkg](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-nrf5sdk-tools/guides/dfu_generating_packages.html) / [dfu](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-nrf5sdk-tools/guides/dfu_performing.html)) / device program over DFU ([docs](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-device/guides/programming_dongle_nsdfu.html)) / Zephyr nRF52840 Dongle board doc（`nrf5sdk-tools dfu usb-serial` を明記）([docs.zephyrproject.org](https://docs.zephyrproject.org/latest/boards/nordic/nrf52840dongle/doc/index.html)) / pc-nrfutil 廃止告知 ([github](https://github.com/NordicSemiconductor/pc-nrfutil)) | 実装バグ修正（API 移行） |
-| DL-6 | nrfutil 本体導入を独立ターゲット `install-nrfutil` に切り出し、CI で実機 smoke test する | DL-4 の bug は CI が **dry-run（`make -n`）と read-only ターゲットのみ**を検証し、`install-tools` を一度も実行していなかったため見逃された。最も壊れやすい工程（外部バイナリ取得）を独立ターゲットにし、macos-14 ランナーで `make install-nrfutil` を実行して `nrfutil --version` の起動と冪等性を検証する。NCS Toolchain 本体（数 GB）は重いため CI 対象外。public リポジトリのため標準 macOS ランナーは無料（課金ゼロ）。 | テスト戦略 / CI 検証範囲 |
-| DL-7 | NCS ソースツリー取得を独立ターゲット `fetch-ncs` で自動化し、全ターゲットの失敗メッセージを「何が・なぜ・どう直すか（具体コマンド/URL）」を含む形に親切化する | **実機で `make setup` の `build-firmware` が「サンプルが見つかりません: …/peripheral_uart」で失敗した。** 根本原因は、`install-tools` の `nrfutil toolchain-manager install --ncs-version` が **ツールチェイン（コンパイラ・Zephyr 依存）のみ**を導入し、`nrf/`・`zephyr/`・`samples/` を含む **NCS ソースツリー（`west init` + `west update` で `~/ncs/<ver>` に展開される）を取得していなかった**こと。`SAMPLE_DIR` が存在せずビルドが落ちていた。<br>**対策:** 新ターゲット `fetch-ncs`（依存: `install-tools`）を追加し、`build-firmware: fetch-ncs` で配線。これにより `make setup` が自動でソース取得→ビルドまで通る。冪等ガードは `SAMPLE_DIR` か `$(NCS_BASE)/.west` の存在で判定。取得は install-tools が入れた nrfutil toolchain-manager 環境内で Nordic 公式手順どおりに行う。**数 GB DL のため CI では smoke 実行せず dry-run パースのみ。**<br>**採用コマンド（Nordic 公式 install_ncs 手順の verbatim。推測ではない）:**<br>1) `nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- west init -m https://github.com/nrfconnect/sdk-nrf --mr $(NCS_VERSION) $(NCS_BASE)`<br>2) `nrfutil toolchain-manager launch --ncs-version $(NCS_VERSION) -- /bin/bash -c 'cd $(NCS_BASE) && west update && west zephyr-export'`<br>`west update` / `west zephyr-export` は workspace 内で実行する必要があるため `cd $(NCS_BASE)` してから実行する。`launch -- <cmd>` の単一コマンド実行形は既存 `build-firmware` の `west build` と同形で、workspace 操作の複数コマンドは公式 nrf-docker と同様 `/bin/bash -c '...'` に包む。`west init` の末尾 topdir 引数は Zephyr west の `west init [directory]` 仕様に準拠。<br>**エラーメッセージ親切化:** `build-firmware`（サンプル不在→`make fetch-ncs` 実行案内＋手動 west コマンド例＋公式 URL）、`fetch-ncs`（ネットワーク/manifest 確認＋URL）、`flash-dk`（nrfjprog 不在→nRF Command Line Tools DL URL）、`install-sniffer`/`flash-sniffer-dongle`（配布物未展開→nRF Sniffer DL URL＋展開手順）。<br>一次情報: NCS install ([docs.nordicsemi.com/.../install_ncs.html](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html)、source rst: [github.com/nrfconnect/sdk-nrf](https://github.com/nrfconnect/sdk-nrf/blob/main/doc/nrf/installation/install_ncs.rst)) / west init+launch 実例 ([NordicPlayground/nrf-docker](https://github.com/NordicPlayground/nrf-docker/blob/saga/Dockerfile)) / nRF Sniffer ([nordicsemi.com](https://www.nordicsemi.com/Products/Development-tools/nRF-Sniffer-for-Bluetooth-LE)、[install guide](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer.html)) / nRF Command Line Tools ([nordicsemi.com](https://www.nordicsemi.com/Products/Development-tools/nRF-Command-Line-Tools/Download)) | 実装バグ修正（実機検証で発覚）＋ UX |
-| DL-8 | `build-firmware` の `west build` を west ワークスペース内で実行する（`cd $(NCS_BASE)` してから呼ぶ） | **実機で `build-firmware` が `west: unknown command "build"; do you need to run this inside a workspace?` で失敗した。** `west build` は west の**ワークスペース拡張コマンド**で、`.west/` を持つワークスペース（`$(NCS_BASE)`）の内側でしか解決されない。従来レシピはリポジトリ CWD（ワークスペース外）から `west build` を実行していたため認識されなかった。<br>**対策:** `nrfutil toolchain-manager launch ... -- /bin/bash -c 'cd "$(NCS_BASE)" && west build -b $(BOARD) "$(SAMPLE_DIR)" --build-dir "$(BUILD_DIR)"'` とし、ワークスペース内で実行する（`fetch-ncs` の `west update` と同じ `cd` パターン）。`SAMPLE_DIR`・`BUILD_DIR` は絶対パスのため成果物はリポジトリの `build/` に出力される。一次情報: west build はワークスペース拡張コマンド（[docs.zephyrproject.org/latest/develop/west/build-flash-debug.html](https://docs.zephyrproject.org/latest/develop/west/build-flash-debug.html)）。 | 実装バグ修正（実機検証で発覚） |
-| DL-9 | `make` のインターフェースを 3 つの関心に分離する（`setup`=実機不要のソフト工程／`deploy`=実機への書き込み（副作用）／`verify`=読み取り専用の検査） | **従来 `setup` は末尾に `verify`（→`flash-dk`/`flash-sniffer-dongle`）を従え、物理デバイス（nRF52840 DK / Dongle）と J-Link/nrfjprog に依存していたため、実機なしでは完走できなかった。** 環境構築の完了確認（ツール導入＋ファームウェアビルドが通るか）すら実機が無いと検証できない状態だった。<br>**対策:** `setup` をハードウェア非依存部分のみ（`check-os install-tools build-firmware`）に絞り、実機が無くても完走させる。実機への**書き込み**は新ターゲット `deploy`（`flash-dk flash-sniffer-dongle`）へ分離。<br>**書き込みと検証の分離:** `deploy`（書き込み＝副作用あり）と `verify`（検査＝読み取り専用）はインターフェースとして別物であり、`deploy` に `verify` を混ぜるのは不適切なため、`verify` を `deploy` の依存に含めず独立ターゲットとした（フラッシュ済み前提）。両方続けて行いたい場合は `make deploy verify` と並べて指定する。`verify` から `flash` 依存を外したことで、`.PHONY` ターゲットの二重実行（flash-dk が複数回走る）も同時に回避している。<br>**CI 追従:** parse-lint の依存グラフ検証を 3 系統（`make -n setup` はソフト工程 needle のみ・flash/verify 不在も確認／`make -n deploy` は flash needle・verify 不在も確認／`make -n verify` は verify needle）に分割した。 | UX / インターフェース設計（ユーザー指摘・承認済み） |
-| DL-10 | `verify` を「確認付きフルフローの入口」にする（`[y/N]` 確認 → `y` なら `deploy`（書き込み）→ 検査） | DL-9 で `verify` を独立させた後、ユーザーから「`verify` のフロー内で `deploy` してよい。ただし実機書き込み前に『書き込みが行われます。問題ないですか？』と確認し、`y` のときだけ実施したい」との指摘。検査だけでなく書き込みまで一気通貫したいが、書き込みは副作用なので明示同意を取る。<br>**実装:** 確認は make の prerequisite では出せない（prerequisite はレシピより先に走り、確認前に書き込まれてしまう）。よって `verify` のレシピ内で `printf`＋`read` の確認を行い、`y` のときだけ書き込みをサブ実行する。`deploy` 自体は無確認の素の書き込みターゲットとして残し、`verify` がそれを呼ぶ（target レベルでは依然分離。DL-9 と矛盾しない）。`y` 以外は書き込みをスキップし現在状態を検査する（既定 N）。非対話時は `/dev/tty` 不在で自動的にスキップ。<br>**重要（dry-run 保全）:** サブ実行に `$(MAKE)` を使うと、その行は `make -n`（dry-run）でも実行され確認プロンプトが誤って出る。これを避けるため**あえて literal `make deploy`** を用いる（literal `make` を含む行は `-n` で実行されず印字のみ）。`make -n verify` が真の dry-run（プロンプト無し・再帰無し）であることを機械確認済み。<br>**CI:** `make -n verify` は literal `make` のため flash を再帰展開せず、依存グラフ検証ステップは従来どおり `verify: 構築結果` needle で成立する。 | UX / インターフェース設計（ユーザー指摘・承認済み） |
-| DL-12 | nRF Sniffer のセットアップを `nrfutil ble-sniffer` で自動化し、手動の nRF Sniffer 配布物 zip を不要化する | **従来は extcap プラグインと dongle 用 hex を手動 zip（`SNIFFER_PKG_DIR`）から供給しており、ユーザーに「Nordic ダウンロードページから zip を取得・展開」する手作業を強いていた（DL-11 の残課題）。** nrfutil の `ble-sniffer` プラグイン（`nrfutil install ble-sniffer`）が extcap shim と全ボード分の Sniffer ファームウェアを内蔵することを実機で確認したため、これに全面移行し手動 zip を撤廃した。手動準備は「実機接続のみ」になった。<br>**確定コマンド（実機 `nrfutil ble-sniffer --help` / 各サブコマンド `--help` で裏取り。推測ではない。nrfutil 8.2.0 / ble-sniffer 0.20.0 / FW 4.1.1）:**<br>1) 導入: `nrfutil install ble-sniffer`（extcap shim と `~/.nrfutil/share/nrfutil-ble-sniffer/firmware/` 配下の FW を配置。dongle は `sniffer_nrf52840dongle_nrf52840_4.1.1.zip`、DK は `.hex`）。<br>2) extcap 配置: `nrfutil ble-sniffer bootstrap --extcap-dir <DIR>`（サブコマンドは `bootstrap`、フラグは `--extcap-dir`。Wireshark の extcap dir に shim を置く）。<br>3) dongle 書き込み: `ble-sniffer` 自体に書き込みサブコマンドは無い（サブコマンドは `sniff` / `bootstrap` / `hci` のみ）。bootstrap の出力が案内するとおり `nrfutil device program --firmware <fw> --serial-number <sn>` を用いる。本実装では DFU モードのドングルを `--traits nordicDfu` で自動選択する（`.zip`=SdfuZip × nordicDfu → Nordic secure DFU が選択される）。<br>**`install-sniffer` 変更:** 「`SNIFFER_PKG_DIR` から extcap を shasum 比較コピー」を撤去し、`nrfutil install ble-sniffer`（冪等ガード: `nrfutil ble-sniffer --help`）→ `nrfutil ble-sniffer bootstrap --extcap-dir $(WIRESHARK_EXTCAP_DIR)` に置換。<br>**`flash-sniffer-dongle` 変更:** hex→zip 変換（`nrf5sdk-tools pkg generate`）と `dfu usb-serial` 転送を撤去し、同梱 DFU zip を `nrfutil device program --firmware <zip> --traits nordicDfu` で 1 コマンド書き込みに変更。tty ポート検出は不要になり、デバイス選択は nrfutil に委ねる。複数台時のみ `SERIAL_PORT`（シリアル番号）で `--serial-number` を明示。<br>**変数:** `SNIFFER_PKG_DIR` / `SNIFFER_HEX` / `SNIFFER_EXTCAP_SRC` を撤去。dongle FW は `SNIFFER_DONGLE_FW`（既定は同梱 zip の glob、任意オーバーライド）に置換。`SERIAL_PORT` は tty パスからシリアル番号に意味が変わった。<br>**DL-5 との関係:** DL-5 は「ドングル DFU を `nrf5sdk-tools pkg/dfu` で行う」と決めたが、本 DL でその手順自体を撤去し、DL-5 が代替案として挙げていた Nordic 推奨の `nrfutil device program`（DFU トレイト自動探索）へ移行した。FW を ble-sniffer 同梱 zip から得るため `pkg generate`（hex→署名 zip 変換）も不要となり、`install-tools` から `nrf5sdk-tools` 導入を撤去した。よって DL-5 の `nrf5sdk-tools` 採用は本 DL で上書き（superseded）される。<br>**信頼性の注意:** コミュニティに bootstrap の extcap shim 方式の不具合報告があるが、本環境（macOS arm64 / nrfutil 8.2.0）では `bootstrap` が成功し shim 配置を確認した。万一 bootstrap が失敗した場合は明示エラーで停止し、配置先（`WIRESHARK_EXTCAP_DIR`）と一次情報 URL を案内する。<br>一次情報: capture tool 導入 ([docs.nordicsemi.com](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer_capture_tool.html)) / ble-sniffer 導入 ([docs](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/installing_nrf_sniffer.html)) / FW 書き込み ([docs](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/programming_firmware.html)) / 概要 ([docs](https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/overview.html)) ＋ 実機 `nrfutil ble-sniffer --help` / `... bootstrap --help` / `nrfutil device program --help`（firmware format 表で `.zip`+nordicDfu → Nordic secure DFU を確認） | 機能改善 / 自動化（手動準備の撤廃） |
-| DL-11 | ホストツール（nrfjprog ＋ SEGGER J-Link）を `install-tools`（＝`make setup`）で自動導入する | DL-9 で setup をソフト/ハードに分割した後、実機書き込み段で `flash-dk` が `nrfjprog 不在`／`JLinkARM DLL not found` で止まり、ユーザーから「ホストツールはソフト導入なのだから `make setup` が入れるべき（手動はおかしい）」との指摘。**当初ユーザーは「ツール自動導入なし（split のみ）」を選んでいたが、実運用で手動導入の手間が顕在化したため方針変更。** nrfjprog と J-Link は実機が無くても入る純粋なソフト導入なので `install-tools`（ソフト工程）に含めるのが適切。<br>**実装:** `nrfjprog --version` の終了コードで判定し、未導入なら `brew install --cask nordic-nrf-command-line-tools` を実行。この cask は依存として `segger-jlink` を連れてくるため 1 つで nrfjprog ＋ J-Link が揃う（実機調査で確認）。いずれも `.pkg` インストーラのため導入時に sudo を要求し得る（一度きり・対話）。<br>**CI 非実行:** install-tools は CI で実行しない（dry-run パースのみ）ため、sudo/実インストールは CI に影響しない。<br>**残課題:** nRF Sniffer 配布物は Nordic のダウンロードページ越し（安定した直 URL が無い）のため自動取得は見送り、手動配置のまま明示案内する。**← この残課題は DL-12 で解消（`nrfutil ble-sniffer` が extcap と dongle FW を内蔵し手動 zip を撤廃）。** | UX / 自動化（ユーザー指摘・方針変更） |
+| ID | 決定事項 | 理由 / 背景 |
+| --- | --- | --- |
+| D-1 | リポジトリを「Core Bluetooth 検証環境を `make` で用意するこのリポジトリ」と「submodule である nRF52840 製 BLE デバッグ環境」の 2 つに分割する | 旧構成は Core Bluetooth という名前と nRF ハードのセットアップという実体が乖離していた。Central 実装を含む全体をこのリポジトリがまとめ、ハード固有の面倒は submodule に閉じることで、名実を一致させ、submodule を独立再利用可能にする。 |
+| D-2 | 取り込みは subtree / コピー / パッケージ依存ではなく **submodule** とする | submodule のコミットをこのリポジトリが明示的にピン留めでき、再現性が高い。submodule は独立リポジトリとして単体でも使え、公開する価値がある。subtree は履歴がこのリポジトリに混入し独立性が薄れる。単純コピーは更新追従ができない。パッケージ化は Makefile 配布に対して過剰。 |
+| D-3 | 旧 `docs/DESIGN-001.md` は submodule へ移設せず破棄し、本書で全面的に置き換える | 旧文書は文体が不安定で設計書として使えないとのユーザー指摘による判断。submodule には README で足りるため設計書を持たせず、このリポジトリに唯一の設計書として本書を置く。 |
+| D-4 | 検証フローを DUT 確定 → 観測手段確定 → 検証主体確定の 3 フェーズに構造化する | BLE 検証は「対向・観測・主体」の三者が揃って初めて成立する。各フェーズに明確な完了条件を与えることで、どこまで確定したかを段階的に保証できる。 |
+| D-5 | Phase 1 の blinky は submodule の新ターゲットではなく、既存 `flash-dk` の `SAMPLE_DIR` / `BUILD_DIR` 変数上書きで実現する | submodule の Makefile は両変数を既に変数化しており、`zephyr/samples/basic/blinky` の blinky を別 `BUILD_DIR` でビルド・書き込みできる。submodule を無改変に保て、peripheral_uart 用ビルドと共存できる。**代替案**として submodule に `flash-blinky` 専用ターゲットを追加する案は submodule の改変を伴い、変数上書きで足りる以上は不採用。なお blinky の「書き込み」自体は変数上書きで無改変のままだが、検証性のための「消灯（baseline）」は別関心であり、デバイス消去ターゲット `erase-dk` を submodule に追加した（D-12）。 |
+| D-6 | Phase 3 は「`.xcodeproj` 生成まで」を Makefile の責務とし、Xcode ビルド・署名・実行は人間に委ねる | Apple の署名フローは GUI と手動承認を要し、Make の冪等性を保証できない。これは submodule の Makefile が Xcode を対象外としてきた方針の踏襲である。`generate-central` で `xcodegen` による `.xcodeproj` 化までを機械化し、以降の実機署名・ビルド・実行は開発者が担う。 |
+| D-7 | `project.yml` ＋ Swift ソースの Central アプリをこのリポジトリに固定し、`.xcodeproj` だけを `xcodegen` で生成する。**`make` 実行時に iOSAppTemplate へは依存しない** | iOSAppTemplate は Genesis テンプレで、XcodeGen `project.yml` を含むアプリ一式の雛形を生成する。当初案は `make` 実行のたびに iOSAppTemplate を clone して Genesis 生成していたが、**テンプレは破壊的に変更され得るため、実行時依存は壊れやすい**とユーザーが指摘した。そこで iOSAppTemplate で一度だけ雛形を生成し、その source of truth である `project.yml`・`AppDelegate`/`SceneDelegate`/`CentralViewController` をこのリポジトリに固定。以後 iOSAppTemplate を参照せず、`make generate-central` は同梱 `project.yml` を `xcodegen generate` するだけ。commit するのは `project.yml` と Swift ソース、生成物の `.xcodeproj`・`Info.plist` は `.gitignore`。種別: ユーザー指摘と依存削減による実装方針。 |
+| D-8 | このリポジトリは submodule へ `$(MAKE) -C` で委譲し、submodule の冪等性と setup・deploy・verify の関心分離をそのまま継承する | submodule は冪等性と書き込み/検証分離を作り込み済み。このリポジトリはそれを再発明せず、まとめて呼び出すだけにとどめ、二重実装と挙動のずれを防ぐ。 |
+| D-9 | CI が回す dry-run パース・submodule 整合の機械検証と、LED・GUI・実機実行の人間確認を設計段階で明示分離する | 「事実に判定させる」方針。検証可能なものは CI が判定し、目視・GUI 操作は人間の完了条件として記すが Makefile の責務には含めない。重い実機・数 GB DL・GUI は CI 非対象とする。 |
+| D-10 | `make` インターフェースを「**`make setup` 一回の準備 ＋ 独立した 4 コマンドのこの環境でできること**」の二段階にする | 最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が、ビルド・配置・生成の準備と、書き込み・GUI 起動による実機で動かす操作を 1 ターゲットに混在させ、`setup` も 3 環境のうち peripheral_uart の 1 つしか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: ユーザー指摘で承認済みの UX / インターフェース設計。 |
+| D-11 | Central のログ画面に [Pulse](https://github.com/kean/Pulse) を採用する | 教材の関心は Core Bluetooth であり、ログ画面のレイアウトは関心の外。自前の `UITextView` をやめ、定評ある Pulse のコンソール（検索・フィルタ・詳細つき）を `PulseUI.MainViewController` で埋め込み、ログは `LoggerStore.shared.storeMessage` へ流す。依存は `project.yml` に `revision`（コミット SHA。5.2.2）で固定。種別: 依存採用（ユーザー指摘）。 |
+| D-12 | `flash-blinky` は「全消去で消灯 → 消灯確認の一時停止 → blinky 書き込みで点滅」と誘導し、消灯を起点に観測可能な OFF→ON 差分を作る。全消去はデバイス操作のため submodule の新ターゲット `erase-dk` に置き、誘導の一時停止は親に置く | 開発キットが既に点滅していると blinky 書き込みの前後で LED の見た目が変わらず、検証しづらいというユーザー指摘による。差分を作るには消灯という既知の baseline が要る。**選択肢**は ①`flash-blinky` に内蔵し誘導 ②`erase-dk` を独立ターゲットに分離し手動 2 ステップ ③両立、で、初学者が 1 コマンドで明確な OFF→ON を得られる ① を採用。全消去は nrfjprog / J-Link のデバイス操作であり、その道具一式を持つ submodule に `erase-dk` として置く（D-5 の「blinky の書き込みは無改変」とは別関心。消去という新機能のため submodule に最小限のターゲットを足す）。一時停止という UX の誘導は親側の責務とし、対話端末のときだけ止め、非対話/CI では止めず通常書き込みする（D-9 の機械/人間の分離を保つ）。種別: ユーザー指摘で承認済みの UX / 検証性設計。 |
+| D-13 | `flash-peripheral` の往復確認を機械化する。検査は別ターゲット `verify-peripheral` に切り出して単体再実行も可能にし、`flash-peripheral` 末尾からも呼ぶ。シリアルのポート識別・送受信は submodule の `uart-port`/`uart-send`/`uart-capture`、対話誘導は親の `scripts/verify-peripheral.sh` に置く | 「RX/TX で文字列が往復することを確認」では、どんな文字列が流れるか不明で検証できないとのユーザー指摘による。実機セッションで「ポート識別→`world` 送信→`てすと` 受信表示」が往復確認に有効と判明したため、それを恒久化する。**選択肢**は ① flash-peripheral 内蔵 ② 別ターゲット＋内蔵呼び出し ③ 別ターゲットのみ、で、単体やり直しの利便から ② を採用。実装場所は device 操作（ホストの J-Link 仮想シリアル識別・送受信）を submodule、y/N 誘導を親とし、`erase-dk`（D-12）と同じ分担で一貫させる。ポートは SEGGER J-Link の VCOM を識別（複数時は最小番号=コンソール、`UART_PORT` で上書き）。非対話/CI ではスキップ（D-9）。対象は Apple Silicon Mac（`ioreg`/`stty -f`/`perl`）。種別: ユーザー指摘で承認済みの UX / 検証性設計。 |
 
-> **注:** DL-4 のダウンロード URL は調査時に実機で取得・`file` により arm64 ネイティブと確認済み（推測 URL ではない）。なお `nrfutil` バイナリの取得・実行はユーザー自身が `make` を実行する際にユーザー権限で行われる。`flash-sniffer-dongle` が用いる `nrfutil pkg` / `nrfutil dfu` は旧 pc-nrfutil 系の構文であり、新 unified nrfutil では別コマンド体系になる点は DL-5 で `nrfutil nrf5sdk-tools` 系へ移行した。**その後 DL-12 で当該 DFU 手順自体を撤去し、`nrfutil device program`（ble-sniffer 同梱の DFU zip を使用）へ移行したため、DL-5 の `nrf5sdk-tools` 採用は superseded となった。**
+<p align="center"><sub>表 8 — 解決した選択を記録する意思決定ログ。</sub></p>
 
-> **注:** DL-3 は当初設計（`setup` を既定として冒頭配置）からの逸脱である。実装・レビュー段階でのユーザー判断により決定し、本設計書を実装に追従させた。
+## 付録
+
+本書は、構成・責務分割・Make ターゲット設計・検証範囲を定義する現状の原典である。経緯・選択の理由は[意思決定ログ](#意思決定ログ)に集約する。
