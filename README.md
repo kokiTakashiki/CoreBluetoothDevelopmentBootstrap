@@ -49,7 +49,7 @@ make setup            # 検証に必要なものを全部用意する
 # この環境でできること（実機をつないで、好きなものを順不同・何度でも試す）
 make flash-blinky     # ① 開発キット: 消灯→点滅の差分で確認（全消去→消灯確認→blinky 書き込み）
 make flash-peripheral # ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査（上り world / 下り てすと）
-make capture          # ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
+make capture          # ② アナライザ: ドングルに Sniffer を焼き、Wireshark で DK↔iPhone を観測（広告→接続→MTU→GATT）
 make open-central     # ③ Central: Xcode プロジェクトを開いてアプリを動かす
 ```
 
@@ -58,7 +58,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | フェーズ | 目的（確定するもの） | Makefile が自動化 | 人手で確認 |
 | --- | --- | --- | --- |
 | **Phase 1** 開発キット単体 | DUT（BLE Peripheral） | blinky / peripheral_uart の書き込み | 消灯→LED 点滅・nRF Connect での文字列往復 |
-| **Phase 2** プロトコルアナライザ運用 | 観測手段 | Sniffer extcap 配置・ドングルへの FW 書き込み | Wireshark への Sniffer 出現・各フェーズ観測 |
+| **Phase 2** プロトコルアナライザ運用 | 観測手段 | Sniffer extcap 配置・ドングルへの FW 書き込み | Wireshark への Sniffer 出現・広告→接続→MTU→GATT の観測 |
 | **Phase 3** Xcode Central 最小実装 | 検証主体（自作 Central） | 同梱の project.yml を xcodegen で .xcodeproj 化（iOSAppTemplate 非依存） | Xcode でのビルド・実行・Sniffer 裏取り |
 
 各フェーズの完了条件・Mermaid 図・意思決定ログは [docs/DESIGN-001.md](docs/DESIGN-001.md) を参照。
@@ -71,7 +71,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | できること | `make flash-blinky` | ① 開発キット: 全消去で消灯させ、消灯確認の一時停止を挟んで blinky を焼く。消灯→点滅の差分で書き込み成功を確認（非対話/CI では止めず実行）。 |
 | できること | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査する。各段は実行コマンドを見せて y/N で進み、上り（Mac→DK へ `world` 送信→ iPhone の TX 通知）／下り（iPhone→RX へ `てすと` Write → DK シリアルの受信表示）を確認。非対話/CI ではスキップ。 |
 | 検査 | `make verify-peripheral` | ① 開発キット: 上の往復検査だけを単体で実行（焼き直さず再確認したいとき）。ポート識別・送受信は submodule、誘導は親。`UART_PORT=` で VCOM 上書き可。 |
-| できること | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
+| できること | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、DK↔iPhone を Wireshark で観測する。Sniffer 選択 → Device で `Nordic_UART_Service` を追跡 → iPhone から接続し、広告→接続→MTU 交渉→GATT Discovery を確認（`btatt` で GATT に絞る）。**DK が peripheral_uart で動いていること**が前提（blinky 等だと NUS を広告せず観測不能）。詳細手順は実行時の表示と DESIGN-001 §5.2。 |
 | できること | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
 | その他 | `make` | ターゲット一覧（help）。 |
 | その他 | `make init` | submodule を取得・更新（`make setup` が内部で実行）。 |
