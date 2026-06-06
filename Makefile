@@ -1,11 +1,12 @@
 # ============================================================
 # Core Bluetooth（BLE）検証環境 Makefile
 #
-#   make setup         検証環境の基盤を組み上げる（実機不要・冪等）
-#   make flash-blinky  ① 開発キット: blinky を焼いて LED 点滅を見る
+#   make setup            検証環境の基盤を組み上げる（実機不要・冪等）
+#   make flash-blinky     ① 開発キット: blinky を焼いて LED 点滅を見る
+#   make flash-peripheral ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査
 #
 # nRF ハード固有の工程は submodule external/nrf52840-ble-debug-bootstrap へ委譲する。
-# 残りの各コマンド（flash-peripheral / capture / open-central）は後続の PR で追加する。
+# 残りの各コマンド（capture / open-central）は後続の PR で追加する。
 # 設計の詳細は docs/DESIGN-001.md を参照。
 # 対象ホスト: Apple Silicon Mac。Xcode ビルド / iOS 実機署名は人手（対象外）。
 # ============================================================
@@ -78,9 +79,18 @@ flash-blinky: init ## ① 開発キット: blinky を焼いて LED 点滅を見�
 	$(MAKE) -C $(SUBMODULE_DIR) flash-dk SAMPLE_DIR='$(BLINKY_SAMPLE)' BUILD_DIR='$(BLINKY_BUILD_DIR)'
 	@echo "    検証: 消灯状態から LED1 が点滅に変われば OK です。"
 
+flash-peripheral: init ## ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査
+	@echo "==> flash-peripheral: peripheral_uart を書き込みます"
+	$(MAKE) -C $(SUBMODULE_DIR) flash-dk
+	@echo "    peripheral_uart は BLE(NUS) と DK のシリアルを橋渡しするだけです。続けて往復を検査します。"
+	@bash "$(CURDIR)/scripts/verify-peripheral.sh" "$(SUBMODULE_DIR)"
+
+verify-peripheral: init ## ① 開発キット: peripheral_uart の往復(上り/下り)だけを対話検査
+	@bash "$(CURDIR)/scripts/verify-peripheral.sh" "$(SUBMODULE_DIR)"
+
 clean: ## ビルド成果物を削除
 	-@$(MAKE) -C $(SUBMODULE_DIR) clean
 	@rm -rf "$(CURDIR)/build"
 	@echo "==> clean: 完了"
 
-.PHONY: help init setup flash-blinky clean
+.PHONY: help init setup flash-blinky flash-peripheral verify-peripheral clean
