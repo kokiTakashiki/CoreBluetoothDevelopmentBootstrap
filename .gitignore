@@ -1,14 +1,5 @@
-# west / Zephyr build artifacts
+# Build artifacts（blinky/firmware ビルドを submodule 委譲で親 build/ へ出す）
 /build/
-build/
 
 # macOS
 .DS_Store
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-
-# Sniffer DFU 生成物
-*.zip

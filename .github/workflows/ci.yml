@@ -1,0 +1,49 @@
+name: parent-makefile
+
+# このリポジトリの Makefile の機械ゲート。
+# 実機・GUI・数 GB DL は対象外（DESIGN-001 6 章）。
+# - 既定ゴールが副作用のない help であること
+# - 基盤ターゲットが定義され .PHONY であること
+# - .gitmodules の URL/パスが宣言と一致し submodule が実在すること
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  parse-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          submodules: recursive
+
+      - name: make version
+        run: make --version
+
+      - name: 既定ゴール = help（副作用なし）
+        run: |
+          make | tee /tmp/default.txt
+          grep -q "Core Bluetooth（BLE）検証環境" /tmp/default.txt \
+            || { echo "既定ゴールが help でない"; exit 1; }
+
+      - name: 基盤ターゲットが定義済み
+        run: |
+          db="$(make -rpn 2>/dev/null || true)"
+          for t in help init setup clean; do
+            echo "$db" | grep -q "^$t:" || { echo "未定義ターゲット: $t"; exit 1; }
+          done
+
+      - name: .PHONY に全ターゲットが含まれる
+        run: |
+          phony="$(grep -A2 '^\.PHONY:' Makefile | tr '\\\n' ' ')"
+          for t in help init setup clean; do
+            echo "$phony" | grep -qw "$t" || { echo ".PHONY 欠落: $t"; exit 1; }
+          done
+
+      - name: .gitmodules の URL/パス整合と submodule 実在
+        run: |
+          grep -q 'path = external/nrf52840-ble-debug-bootstrap' .gitmodules
+          grep -q 'url = https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap' .gitmodules
+          test -f external/nrf52840-ble-debug-bootstrap/Makefile \
+            || { echo "submodule が未取得"; exit 1; }
