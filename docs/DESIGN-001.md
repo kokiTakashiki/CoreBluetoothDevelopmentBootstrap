@@ -279,6 +279,8 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 
 **観測できない時の第一容疑者は被検証側のファーム。** DK が peripheral_uart でなければ（例: `flash-blinky` 後の blinky）NUS を広告せず、Sniffer に何も出ない。観測できない時は、まず DK のシリアル起動ログに `Starting Nordic UART service example` が出るかでファームを確認し、無ければ `flash-peripheral` で焼き直す。電波（観測手段）より先に、送信源が意図したファームで動いているかを疑うのが速い。
 
+**Sniffer インタフェース自体が一覧に出ない時。** ドングルは健在でも、Sniffer FW のハングやホスト側 extcap のスタックで Wireshark の一覧から消えることがある。復旧は「ドングル挿し直し → FW 焼き直し（ブートローダにして `flash-sniffer-dongle`）→ Wireshark 再起動 → Mac 再起動」の順。最後の Mac 再起動で USB シリアル / extcap のスタックが解けることが多い（具体手順は `make capture` 実行時の案内にも表示する）。
+
 **完了条件:** Wireshark に Sniffer インタフェースが現れ、DK ↔ iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズが観測できること。これをもって観測手段を確定する。
 
 ### 5.3 Phase 3 — Xcode で Central 最小実装
