@@ -61,7 +61,7 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | **Phase 2** プロトコルアナライザ運用 | 観測手段 | Sniffer extcap 配置・ドングルへの FW 書き込み | Wireshark への Sniffer 出現・広告→接続→MTU→GATT の観測 |
 | **Phase 3** Xcode Central 最小実装 | 検証主体（自作 Central） | 同梱の project.yml を xcodegen で .xcodeproj 化（iOSAppTemplate 非依存） | Xcode でのビルド・実行・Sniffer 裏取り |
 
-各フェーズの完了条件・Mermaid 図・意思決定ログは [docs/DESIGN-001.md](docs/DESIGN-001.md) を参照。
+各フェーズの完了条件・Mermaid 図・意思決定ログは [docs/DESIGN-001.md](docs/DESIGN-001.md) を参照。コマンドで詰まったときは [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)（コマンド別）を参照。
 
 ## コマンド一覧
 

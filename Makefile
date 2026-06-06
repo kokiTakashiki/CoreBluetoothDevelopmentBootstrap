@@ -164,12 +164,8 @@ capture: init ## ② アナライザ: ドングルに Sniffer を焼き Wireshar
 	@echo "     'Sent Write Request' が出る。その行を選び、詳細ペインの 'Bluetooth Attribute Protocol'"
 	@echo "     を展開すると 'Value' に送ったバイト列（hello = 68 65 6c 6c 6f）が見える。"
 	@echo ""
-	@echo "  困ったら:"
-	@echo "   - 一覧に 'nRF Sniffer for Bluetooth LE' が出ない →"
-	@echo "       ① ドングルを挿し直す ② FW を焼き直す（ブートローダ＝赤点滅にして make capture を再実行）"
-	@echo "       ③ Wireshark を再起動 ④ それでも駄目なら Mac を再起動（extcap/USB シリアルのスタック解消）。"
-	@echo "   - Device に 'Nordic_UART_Service' が出ない → DK が広告していない。iPhone を切断する。"
-	@echo "       （DK のファームは冒頭の自動確認が判定済み。WARN が出ていたら make flash-peripheral）。"
+	@echo "  うまくいかない時（Sniffer が一覧に出ない / Device に DK が出ない 等）は"
+	@echo "  docs/TROUBLESHOOTING.md の 'make capture' の節を参照してください。"
 	@open -a Wireshark 2>/dev/null || echo "    （Wireshark を手動で起動してください）"
 
 open-central: generate-central ## ③ Central: Xcode プロジェクトを開いてアプリを動かす
