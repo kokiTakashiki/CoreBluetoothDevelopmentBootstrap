@@ -69,7 +69,7 @@ flowchart LR
 **準備が終わったら、実機をつないで、この環境でできることを個別のコマンドで試す。** コマンドは次の 4 つである。
 
 - `make flash-blinky` — 開発キットをまず全消去して LED を消灯させ、消灯を確認してから blinky を書き込み、LED が点滅に変わるのを見る。消灯から点滅への変化を観測することで、書き込みが効いたと確かめられる（既に点滅していると書き込み前後で見分けがつかないため、消灯を起点に差分を作る）。
-- `make flash-peripheral` — 開発キットに peripheral_uart を書き込む。これは BLE(NUS) と開発キットのシリアルを橋渡しするだけで、自分からは何も送らない。自分で文字を送って往復を確かめる: iPhone の nRF Connect for Mobile で RX に書いた文字が開発キットのシリアル端末に出れば下り、シリアル端末で打った文字が nRF Connect の TX 通知に届けば上りが確認できる。
+- `make flash-peripheral` — 開発キットに peripheral_uart を書き込み、続けて**往復を対話で検査する**。peripheral_uart は BLE(NUS) と開発キットのシリアルを橋渡しするだけで自分からは何も送らないため、検査は人手の往復で確かめる。各ステップは実行コマンドを見せて y/N で進め、上り（Mac から開発キットのシリアルへ `world` を送り、iPhone の TX 通知に出るか）と下り（iPhone から RX へ `てすと` を Write し、開発キットのシリアルに出るか）を順に確認する。シリアルのポート識別・送受信という機器操作は submodule へ委譲し、誘導は親が担う。検査だけをやり直したいときは `make verify-peripheral` を単体で実行する。非対話／CI では検査をスキップする。
 - `make capture` — ドングルに Sniffer を書き込み、Wireshark で電波上のやり取りを覗く。
 - `make open-central` — Xcode プロジェクトを開き、自分で書いた Central アプリを動かす。
 
@@ -87,7 +87,8 @@ flowchart LR
 | 準備 | `generate-central` | 同梱 `project.yml` を Mintfile 固定の XcodeGen で生成 | `setup`／`open-central` から呼ばれ、iOSAppTemplate 非依存で Central の `.xcodeproj` を生成する。 |
 | 整形 | `format` ／ `format-check` | Mintfile 固定の SwiftFormat | Central の Swift を整形／検査する。設定は `.swiftformat`。任意。 |
 | できること① 開発キット | `flash-blinky` | submodule の `build-firmware`(blinky) → `erase-dk` → 一時停止 → `flash-dk`(blinky) | 全消去で消灯させ、消灯確認の一時停止を挟んでから blinky を焼く。消灯→点滅の差分で書き込み成功を確かめる。非対話/CI では停止せず進む。 |
-| できること① 開発キット | `flash-peripheral` | submodule の `flash-dk` | peripheral_uart を焼き、nRF Connect で往復を見る。 |
+| できること① 開発キット | `flash-peripheral` | submodule の `flash-dk` → 親 `verify-peripheral` | peripheral_uart を焼き、続けて往復を対話検査する。 |
+| 検査① 開発キット | `verify-peripheral` | 親 `scripts/verify-peripheral.sh`（submodule の `uart-port`/`uart-send`/`uart-capture` を委譲） | 往復だけを対話検査（上り: `world` 送信／下り: `てすと` 受信表示）。各段は実行コマンド提示＋ y/N。非対話/CI ではスキップ。 |
 | できること② アナライザ | `capture` | submodule の `flash-sniffer-dongle` ＋ Wireshark 起動 | ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
 | できること③ Central | `open-central` | `open *.xcodeproj` | Xcode プロジェクトを開いてアプリを動かす。 |
 | — | `verify` | submodule の `verify` | 読み取り専用＋[y/N]書込確認の機械検査。 |
@@ -232,7 +233,7 @@ flowchart LR
 | --- | --- | --- |
 | Nordic 公式 Getting Started に従い blinky を書き込み | ○ submodule の `erase-dk` で全消去 → 消灯確認の一時停止 → blinky を変数上書きした `flash-dk` | 消灯状態から LED が点滅に変わること |
 | Nordic UART Service の peripheral_uart を書き込み | ○ 既定サンプルである submodule の `flash-dk` | — |
-| nRF Connect for Mobile と開発キットのシリアル端末(115200 bps)で文字列の往復を確認 | × GUI / 手入力のため対象外（橋渡し自体は peripheral_uart が担う） | 下り: RX(6E400002) に `hello` を Write → シリアル端末に `hello` が出る。上り: シリアル端末で `world` を打つ → TX(6E400003) の通知に `world` が届く |
+| nRF Connect for Mobile と開発キットのシリアルで文字列の往復を確認 | △ 半自動: `verify-peripheral` が**ポート識別・上り送信・下り受信表示**を機械化（115200 のシリアル送受信は機械が実行）。iPhone 側の Notify ON と Write は人手 | 上り: 送信した `world` が TX(6E400003) の通知に出る。下り: RX(6E400002) へ `てすと` を Write → 受信表示に `てすと` が出る |
 
 <p align="center"><sub>表 4 — Phase 1 の手順と、Makefile の自動化範囲および人間の確認。</sub></p>
 
@@ -249,9 +250,11 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 
 **消灯を起点に差分を作る:** blinky は LED を点滅させるサンプルだが、開発キットが既に点滅状態だと書き込み前後で見た目が変わらず、書き込みが効いたか確かめられない。そこで `flash-blinky` は書き込みの前に全消去で LED を消灯させ、消灯を目視確認させる一時停止を挟んでから書き込む。消灯から点滅への変化が、書き込み成功の観測可能な証拠になる。全消去はデバイス操作（nrfjprog / J-Link）であり、その道具一式を持つ submodule 側の `erase-dk` ターゲットへ寄せる。誘導の一時停止という UX は親側に置く。一時停止は対話端末のときだけで、非対話（CI）では止めず通常書き込みする（D-12）。
 
-**peripheral_uart は橋渡し（自分からは送らない）:** このサンプルは BLE(NUS) と開発キットのシリアルを双方向に橋渡しするだけで、自動では何も送信しない。よって往復は人間が文字を送って確かめる。RX に書いた文字がシリアルへ抜ければ下り、シリアルで打った文字が TX 通知で返れば上りが取れる。観測には開発キットのシリアル端末（115200 bps。`ls /dev/tty.usbmodem*` でポートを確認し `screen` 等で接続）が要る。BLE 内でのエコーは無いため、ループは必ず BLE ↔ シリアルを経由する。
+**peripheral_uart は橋渡し（自分からは送らない）:** このサンプルは BLE(NUS) と開発キットのシリアルを双方向に橋渡しするだけで、自動では何も送信しない。BLE 内でのエコーは無いため、ループは必ず BLE ↔ シリアルを経由する。よって往復は「シリアルへ送る／から受ける」操作が要る。手で `screen` を開く方法もあるが、ボーレートや終了キー操作で詰まりやすい。そこで `verify-peripheral` が**シリアルのポート識別・送信・受信を機械化**し、人手は iPhone 側（Notify ON・Write）だけに絞る。
 
-**完了条件:** blinky で消灯から LED 点滅への変化を確認し、peripheral_uart 書き込み後に「nRF Connect の RX へ `hello` を書くとシリアル端末に `hello` が出る（下り）／シリアル端末で `world` を打つと nRF Connect の TX 通知に `world` が届く（上り）」の往復が取れること。これをもって被検証側を確定する。
+**往復検査の機械化と分担（D-13）:** ポート識別・送受信は開発キット（ホストの J-Link 仮想シリアル）に対するデバイス操作なので submodule の `uart-port`／`uart-send`／`uart-capture` に置き、対話誘導（実行コマンド提示＋ y/N、受信内容の表示）は親の `scripts/verify-peripheral.sh` に置く（`erase-dk` と同じ D-12 の分担）。ポートは SEGGER J-Link 配下の仮想シリアルを識別し、複数あるときは最小番号をコンソールとみなす（`UART_PORT` で上書き可）。取りこぼし防止のため、下り検査は Write を促す前に受信を開始しておく。非対話／CI では検査全体をスキップする（D-9 の機械／人間分離を保つ）。
+
+**完了条件:** blinky で消灯から LED 点滅への変化を確認し、peripheral_uart で `verify-peripheral` の往復、すなわち「上り: 送信した `world` が TX(6E400003) の通知に出る／下り: RX(6E400002) へ `てすと` を Write すると受信表示に `てすと` が出る」が取れること。これをもって被検証側を確定する。
 
 ### 5.2 Phase 2 — プロトコルアナライザ運用の確立
 
@@ -345,6 +348,7 @@ sequenceDiagram
 | D-10 | `make` インターフェースを「**`make setup` 一回の準備 ＋ 独立した 4 コマンドのこの環境でできること**」の二段階にする | 最重要の設計対象は `make` の使い勝手そのものである。当初案は `phase1/2/3` が、ビルド・配置・生成の準備と、書き込み・GUI 起動による実機で動かす操作を 1 ターゲットに混在させ、`setup` も 3 環境のうち peripheral_uart の 1 つしか用意していなかった。ユーザー指摘により、`make setup` 一回で blinky/peripheral_uart ビルド・Sniffer extcap・Xcode プロジェクトまで**全部を冪等に用意**し、以降は `flash-blinky` / `flash-peripheral` / `capture` / `open-central` の 4 コマンドを**順不同・何度でも**叩いて確かめられる形へ再設計。「この環境でできること」は開発キットを blinky と peripheral に分けて細分化し、命名は動作が一目で分かる動詞＋対象とした。種別: ユーザー指摘で承認済みの UX / インターフェース設計。 |
 | D-11 | Central のログ画面に [Pulse](https://github.com/kean/Pulse) を採用する | 教材の関心は Core Bluetooth であり、ログ画面のレイアウトは関心の外。自前の `UITextView` をやめ、定評ある Pulse のコンソール（検索・フィルタ・詳細つき）を `PulseUI.MainViewController` で埋め込み、ログは `LoggerStore.shared.storeMessage` へ流す。依存は `project.yml` に `revision`（コミット SHA。5.2.2）で固定。種別: 依存採用（ユーザー指摘）。 |
 | D-12 | `flash-blinky` は「全消去で消灯 → 消灯確認の一時停止 → blinky 書き込みで点滅」と誘導し、消灯を起点に観測可能な OFF→ON 差分を作る。全消去はデバイス操作のため submodule の新ターゲット `erase-dk` に置き、誘導の一時停止は親に置く | 開発キットが既に点滅していると blinky 書き込みの前後で LED の見た目が変わらず、検証しづらいというユーザー指摘による。差分を作るには消灯という既知の baseline が要る。**選択肢**は ①`flash-blinky` に内蔵し誘導 ②`erase-dk` を独立ターゲットに分離し手動 2 ステップ ③両立、で、初学者が 1 コマンドで明確な OFF→ON を得られる ① を採用。全消去は nrfjprog / J-Link のデバイス操作であり、その道具一式を持つ submodule に `erase-dk` として置く（D-5 の「blinky の書き込みは無改変」とは別関心。消去という新機能のため submodule に最小限のターゲットを足す）。一時停止という UX の誘導は親側の責務とし、対話端末のときだけ止め、非対話/CI では止めず通常書き込みする（D-9 の機械/人間の分離を保つ）。種別: ユーザー指摘で承認済みの UX / 検証性設計。 |
+| D-13 | `flash-peripheral` の往復確認を機械化する。検査は別ターゲット `verify-peripheral` に切り出して単体再実行も可能にし、`flash-peripheral` 末尾からも呼ぶ。シリアルのポート識別・送受信は submodule の `uart-port`/`uart-send`/`uart-capture`、対話誘導は親の `scripts/verify-peripheral.sh` に置く | 「RX/TX で文字列が往復することを確認」では、どんな文字列が流れるか不明で検証できないとのユーザー指摘による。実機セッションで「ポート識別→`world` 送信→`てすと` 受信表示」が往復確認に有効と判明したため、それを恒久化する。**選択肢**は ① flash-peripheral 内蔵 ② 別ターゲット＋内蔵呼び出し ③ 別ターゲットのみ、で、単体やり直しの利便から ② を採用。実装場所は device 操作（ホストの J-Link 仮想シリアル識別・送受信）を submodule、y/N 誘導を親とし、`erase-dk`（D-12）と同じ分担で一貫させる。ポートは SEGGER J-Link の VCOM を識別（複数時は最小番号=コンソール、`UART_PORT` で上書き）。非対話/CI ではスキップ（D-9）。対象は Apple Silicon Mac（`ioreg`/`stty -f`/`perl`）。種別: ユーザー指摘で承認済みの UX / 検証性設計。 |
 
 <p align="center"><sub>表 8 — 解決した選択を記録する意思決定ログ。</sub></p>
 

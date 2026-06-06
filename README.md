@@ -48,7 +48,7 @@ make setup            # 検証に必要なものを全部用意する
 
 # この環境でできること（実機をつないで、好きなものを順不同・何度でも試す）
 make flash-blinky     # ① 開発キット: 消灯→点滅の差分で確認（全消去→消灯確認→blinky 書き込み）
-make flash-peripheral # ① 開発キット: peripheral_uart を焼く（BLE↔シリアルの橋渡し。nRF Connect とシリアル端末で往復確認）
+make flash-peripheral # ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査（上り world / 下り てすと）
 make capture          # ② アナライザ: ドングルに Sniffer を焼き Wireshark でキャプチャ
 make open-central     # ③ Central: Xcode プロジェクトを開いてアプリを動かす
 ```
@@ -69,7 +69,8 @@ make open-central     # ③ Central: Xcode プロジェクトを開いてアプ�
 | --- | --- | --- |
 | 準備 | `make setup` | 検証に必要なものを全部用意する。ツール導入・NCS 取得・blinky/peripheral_uart ビルド・Sniffer extcap 配置・Xcode Central プロジェクト生成。 |
 | できること | `make flash-blinky` | ① 開発キット: 全消去で消灯させ、消灯確認の一時停止を挟んで blinky を焼く。消灯→点滅の差分で書き込み成功を確認（非対話/CI では止めず実行）。 |
-| できること | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼く。BLE(NUS) と DK のシリアルを橋渡しするだけなので、nRF Connect の RX に書いた文字がシリアル端末に出る（下り）／シリアル端末で打った文字が TX 通知に届く（上り）ことで往復を確認する。 |
+| できること | `make flash-peripheral` | ① 開発キット: peripheral_uart を焼き、続けて往復を対話検査する。各段は実行コマンドを見せて y/N で進み、上り（Mac→DK へ `world` 送信→ iPhone の TX 通知）／下り（iPhone→RX へ `てすと` Write → DK シリアルの受信表示）を確認。非対話/CI ではスキップ。 |
+| 検査 | `make verify-peripheral` | ① 開発キット: 上の往復検査だけを単体で実行（焼き直さず再確認したいとき）。ポート識別・送受信は submodule、誘導は親。`UART_PORT=` で VCOM 上書き可。 |
 | できること | `make capture` | ② アナライザ: ドングルに Sniffer を焼き、Wireshark でキャプチャ。 |
 | できること | `make open-central` | ③ Central: Xcode プロジェクトを開いてアプリを動かす。 |
 | その他 | `make` | ターゲット一覧（help）。 |
