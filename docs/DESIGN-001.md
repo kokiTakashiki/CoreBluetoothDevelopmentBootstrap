@@ -269,6 +269,16 @@ $(MAKE) -C external/nrf52840-ble-debug-bootstrap flash-dk \
 
 <p align="center"><sub>表 5 — Phase 2 の手順と、Makefile の自動化範囲および人間の確認。</sub></p>
 
+**観測の手順（人間が Wireshark で行う）:** 「各フェーズを観測」は結果であって手段ではないので、ここに具体手順を示す。`make capture` 実行時にも同じ案内を表示する。
+
+1. インタフェース一覧の **「nRF Sniffer for Bluetooth LE」をダブルクリック**して捕捉を始める。
+2. **nRF Sniffer ツールバー**を出す（メニュー View > Interface Toolbars > nRF Sniffer）。観測対象はこのツールバーの **Device** で選ぶ。
+3. **DK を広告状態にする。** DK が Device 一覧に出るのは広告中だけで、接続中は広告を止める。よって **iPhone を一旦 Disconnect** する。表示フィルタ `frame contains "Nordic_UART_Service"` で行が出れば広告中（Source 列がその DK のアドレス。Adv Hop は `37,38,39` にしておくと取りこぼしにくい）。
+4. Device で **`Nordic_UART_Service` を選択**し、その DK だけを追跡する。
+5. iPhone の nRF Connect で **接続**すると、`ADV_IND`（広告）→ `CONNECT_IND`（接続確立）→ `LL_LENGTH_REQ/RSP`・`ATT Exchange MTU`（**MTU/Data Length 交渉**）→ `ATT Read By Group Type / Read By Type`（**GATT Discovery**）がキャプチャに並ぶ。`btatt` フィルタで GATT のやり取りだけに絞れる。
+
+**観測できない時の第一容疑者は被検証側のファーム。** DK が peripheral_uart でなければ（例: `flash-blinky` 後の blinky）NUS を広告せず、Sniffer に何も出ない。観測できない時は、まず DK のシリアル起動ログに `Starting Nordic UART service example` が出るかでファームを確認し、無ければ `flash-peripheral` で焼き直す。電波（観測手段）より先に、送信源が意図したファームで動いているかを疑うのが速い。
+
 **完了条件:** Wireshark に Sniffer インタフェースが現れ、DK ↔ iPhone 通信で Advertise → Connect → MTU 交渉 → GATT Discovery の各フェーズが観測できること。これをもって観測手段を確定する。
 
 ### 5.3 Phase 3 — Xcode で Central 最小実装
