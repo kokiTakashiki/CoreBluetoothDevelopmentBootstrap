@@ -60,12 +60,7 @@ Wireshark のフィルタ欄に **`btatt`** と入れて Enter。接続の ATT�
 
 iPhone アプリが書いたバイトが、そのまま電波上の ATT パケットとして観測できれば、Peripheral（DK）＋ Sniffer ＋ Central アプリの三者が一本に繋がった ＝ 検証環境が機能している。
 
-## 困ったら（よくあるつまずき）
-
-- **Wireshark に `nRF Sniffer for Bluetooth LE` が出ない** … ドングルを挿し直す → 直らなければ Mac を再起動（USB シリアル／extcap のスタックは再起動で解けることが多い）。
-- **Device に `Nordic_UART_Service` が出ない** … DK が広告していない。iPhone を Disconnect する。`make capture` 冒頭の自動確認が WARN を出していたら DK は peripheral_uart でない → `make flash-peripheral`。
-- **iPhone にログが出ない** … 起動時の Bluetooth 許可を確認。Pulse は上部 `▼` で `Console` タブに切り替える。
-- **`btatt` で何も出ない** … 手順 2-3 の「接続の前に Device で DK を選ぶ」をやり直す（後出しだと接続が録れない）。
+> 詰まったら [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)（コマンド別）を参照。頻繁に更新される単一原典なので、ここには転記せずリンクで参照する（Xcode では開けないため GitHub / リポジトリで読む）。
 
 ## このディレクトリの中身
 
