@@ -1,0 +1,25 @@
+name: central-app
+
+# Central 教材アプリの機械ゲート（Apple Silicon / macOS）。
+# - project.yml から .xcodeproj を生成できること（XcodeGen, Mintfile 固定）
+# - Swift の整形が崩れていないこと（SwiftFormat, Mintfile 固定）
+# 実機ビルド・署名は対象外（Xcode で人手）。
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  central:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Mint
+        run: brew install mint
+
+      - name: generate-central（XcodeGen で .xcodeproj を生成）
+        run: make generate-central
+
+      - name: format-check（SwiftFormat lint）
+        run: make format-check

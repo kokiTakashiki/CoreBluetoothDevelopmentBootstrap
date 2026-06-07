@@ -1,0 +1,53 @@
+# SwiftFormat設定ファイル（iOSAppTemplate 由来）
+
+# 基本的なフォーマット設定
+# 言語バージョン（.swift-version はツールチェーン指定なのでここで明示する）
+--swiftversion 6.0
+--indent 4
+--tabwidth 4
+--maxwidth 120
+--linebreaks lf
+
+# インポート文の整理
+--importgrouping testable-top
+
+# 制御構文の設定
+# else / catch を閉じ括弧の次の行に配置する
+--elseposition next-line
+--guardelse next-line
+# if / guard / for / while などの単一行本体（{ return } 等）を複数行に展開する
+--enable wrapConditionalBodies
+--enable wrapLoopBodies
+
+# 関数とクロージャの設定
+--closingparen balanced
+--funcattributes prev-line
+--typeattributes prev-line
+--storedvarattrs same-line
+--computedvarattrs same-line
+
+# コメントとドキュメント
+--doccomments preserve
+
+# その他の設定
+--stripunusedargs closure-only
+--self remove
+--redundanttype inferred
+--semicolons never
+--trailingclosures default
+--trimwhitespace always
+--yodaswap always
+
+# 宣言の整理
+--enable organizeDeclarations
+--organizationmode type
+
+# 頭字語と略語の設定
+--enable acronyms
+--acronyms ID,URL,UUID
+
+# 無効化するルール
+--disable blankLinesAtEndOfScope,blankLinesAtStartOfScope,unusedArguments,strongOutlets
+
+# 除外するファイルとディレクトリ
+--exclude "**/Generated",**/Pods,**/.build

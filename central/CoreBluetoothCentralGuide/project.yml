@@ -1,0 +1,68 @@
+# XcodeGen のプロジェクト定義（このファイルが Xcode プロジェクトの source of truth）。
+# `xcodegen generate` で CoreBluetoothCentralGuide.xcodeproj を生成する（.xcodeproj は .gitignore）。
+# 雛形は iOSAppTemplate(Genesis) で一度生成したものを固定したもの。実行時に
+# iOSAppTemplate へは依存しない（テンプレの破壊的変更の影響を受けない。DESIGN-001 D-7）。
+name: CoreBluetoothCentralGuide
+
+options:
+  bundleIdPrefix: com.example
+  developmentLanguage: ja
+  knownRegions: [ja]
+  deploymentTarget:
+    iOS: "26.4"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+
+# 教材ドキュメントを Xcode のプロジェクトナビゲータに表示する（非コンパイル）。
+#   - GUIDE.md / README.md      … central/ 直下 → "central" グループに収まる
+#   - docs/TROUBLESHOOTING.md    … repo 直下 docs/ → 親が docs なので "docs" グループに収まる。
+#       単一原典なので転記せず実体を表示する（central/README.md からのリンク先を Xcode でも開ける）。
+# リポジトリ直下の README（一般説明）は取り込まない。親が repo 直下のため取り込むと
+# チェックアウト先フォルダ名のグループができて汚くなる（GitHub / リポジトリ直下で読む）。
+fileGroups:
+  - ../GUIDE.md
+  - ../README.md
+  - ../../docs/TROUBLESHOOTING.md
+
+packages:
+  Pulse:
+    url: https://github.com/kean/Pulse
+    revision: a4e5bc2b0439552d4ff5fc9667c389be6ef5bd52 # 5.2.2
+
+targets:
+  CoreBluetoothCentralGuide:
+    type: application
+    platform: iOS
+    sources:
+      - path: CoreBluetoothCentralGuide
+    dependencies:
+      - package: Pulse
+        product: Pulse
+      - package: Pulse
+        product: PulseUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.CoreBluetoothCentralGuide
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: CoreBluetoothCentralGuide/Info.plist
+      properties:
+        CFBundleDisplayName: CoreBluetoothCentralGuide
+        ITSAppUsesNonExemptEncryption: false
+        # Core Bluetooth を使うには Bluetooth 使用許可の宣言が必須。
+        # これが無いと iOS は許可プロンプトを出さず、Central は scan できない。
+        NSBluetoothAlwaysUsageDescription: "周辺の BLE 機器（peripheral_uart 搭載の開発キット）に接続し、Core Bluetooth の通信を観測するために使用します。"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
