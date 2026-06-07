@@ -17,11 +17,13 @@ settings:
     SWIFT_VERSION: "6.0"
     TARGETED_DEVICE_FAMILY: "1,2"
 
-# 教材ガイドとリポジトリ README（実機 E2E 手順）を Xcode のナビゲータに表示する（非コンパイル）。
-# 学習者がコードと並べて GUIDE.md（コードの読み方）と README（実機での通し方）を読めるようにする。
+# 教材ガイドを Xcode のプロジェクトナビゲータに表示する（非コンパイル）。
+# 学習者がコードと並べて GUIDE.md（コードの読み方＋動かし方）を読めるようにする。
+# リポジトリ直下の README（実機 E2E 手順）は Xcode に取り込まない。取り込むと
+# チェックアウト先フォルダ名のグループが作られて汚くなるため。README はリポジトリ
+# 直下 / GitHub で読む。
 fileGroups:
   - ../GUIDE.md
-  - ../../README.md
 
 packages:
   Pulse:
