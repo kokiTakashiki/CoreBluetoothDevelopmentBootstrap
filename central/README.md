@@ -1,8 +1,8 @@
-# central/ — Phase 3: Xcode で Central 最小実装
+# central/ — Xcode で Central 最小実装
 
-DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこのディレクトリに**固定（commit）**し、`.xcodeproj` だけを `xcodegen` で生成する。**iOSAppTemplate には実行時依存しない**（テンプレが破壊的に変わっても影響を受けない。D-7）。
+iOS Central（BLE クライアント）のアプリ一式をこのディレクトリに**固定（commit）**し、`.xcodeproj` だけを `xcodegen` で生成する。**iOSAppTemplate には実行時依存しない**（テンプレが破壊的に変わっても影響を受けない）。
 
-> **コードの読み方** … [GUIDE.md](GUIDE.md)（手順0〜7 で Core Bluetooth の設計思想を学ぶ）
+> **コードの読み方** … 同じディレクトリの `GUIDE.md`（手順0〜7 で Core Bluetooth の設計思想を学ぶ。Xcode のナビゲータにも表示される）
 
 ## クイックスタート（実機での E2E）
 
@@ -58,9 +58,14 @@ Wireshark のフィルタ欄に **`btatt`** と入れて Enter。接続の ATT�
 - `Read By Group Type`（→ Nordic UART Service 発見）/ `Read By Type`（→ Nordic UART Rx / Tx 発見）… **GATT Discovery**
 - **`Write Command, Handle 0x0015` の `Value` が `Hello from iOS`** … **アプリの【7】書き込みが電波に乗った証拠**（hex `48 65 6c 6c 6f 20 66 72 6f 6d 20 69 4f 53`）
 
-iPhone アプリが書いたバイトが、そのまま電波上の ATT パケットとして観測できれば、Phase 1（DK）＋ Phase 2（Sniffer）＋ Phase 3（Central アプリ）が一本に繋がった ＝ 検証環境が機能している。
+iPhone アプリが書いたバイトが、そのまま電波上の ATT パケットとして観測できれば、Peripheral（DK）＋ Sniffer ＋ Central アプリの三者が一本に繋がった ＝ 検証環境が機能している。
 
-> 詰まったら [../docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)（コマンド別）を参照。
+## 困ったら（よくあるつまずき）
+
+- **Wireshark に `nRF Sniffer for Bluetooth LE` が出ない** … ドングルを挿し直す → 直らなければ Mac を再起動（USB シリアル／extcap のスタックは再起動で解けることが多い）。
+- **Device に `Nordic_UART_Service` が出ない** … DK が広告していない。iPhone を Disconnect する。`make capture` 冒頭の自動確認が WARN を出していたら DK は peripheral_uart でない → `make flash-peripheral`。
+- **iPhone にログが出ない** … 起動時の Bluetooth 許可を確認。Pulse は上部 `▼` で `Console` タブに切り替える。
+- **`btatt` で何も出ない** … 手順 2-3 の「接続の前に Device で DK を選ぶ」をやり直す（後出しだと接続が録れない）。
 
 ## このディレクトリの中身
 
@@ -76,7 +81,7 @@ iPhone アプリが書いたバイトが、そのまま電波上の ATT パケ�
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide.xcodeproj` | `xcodegen generate` の生成物。 | ×（`.gitignore`） |
 | `CoreBluetoothCentralGuide/CoreBluetoothCentralGuide/Info.plist` | XcodeGen が `project.yml` の `info:` から生成（Bluetooth 使用許可も含む）。 | ×（`.gitignore`） |
 
-雛形は iOSAppTemplate(Genesis) で一度生成したものを固定したもの。以後 iOSAppTemplate は不要で、`make` は `xcodegen generate` するだけ。Apple の署名・ビルド・実行は Make の対象外（Xcode で人手。D-6）。
+雛形は iOSAppTemplate(Genesis) で一度生成したものを固定したもの。以後 iOSAppTemplate は不要で、`make` は `xcodegen generate` するだけ。Apple の署名・ビルド・実行は Make の対象外（Xcode で人手）。
 
 ## NUS（Nordic UART Service）UUID
 
