@@ -17,11 +17,11 @@ settings:
     SWIFT_VERSION: "6.0"
     TARGETED_DEVICE_FAMILY: "1,2"
 
-# 教材ガイドを Xcode のプロジェクトナビゲータに表示する（非コンパイル）。
-# 学習者がコードと並べて GUIDE.md を読めるようにする。
+# 教材ガイドとリポジトリ README（実機 E2E 手順）を Xcode のナビゲータに表示する（非コンパイル）。
+# 学習者がコードと並べて GUIDE.md（コードの読み方）と README（実機での通し方）を読めるようにする。
 fileGroups:
   - ../GUIDE.md
-  - ../README.md
+  - ../../README.md
 
 packages:
   Pulse:
