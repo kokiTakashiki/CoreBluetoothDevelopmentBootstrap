@@ -2,6 +2,9 @@
 
 DESIGN-001 Phase 3 の「検証主体」。iOS Central のアプリ一式をこのディレクトリに**固定（commit）**し、`.xcodeproj` だけを `xcodegen` で生成する。**iOSAppTemplate には実行時依存しない**（テンプレが破壊的に変わっても影響を受けない。D-7）。
 
+> **コードの読み方** … [GUIDE.md](GUIDE.md)（手順0〜7 で Core Bluetooth の設計思想を学ぶ）
+> **実機での通し手順（E2E）** … リポジトリ直下の [README](../README.md)（`make setup`→`flash-peripheral`→`capture`→`open-central`）
+
 ## このディレクトリの中身
 
 | パス | 役割 | git 追跡 |
