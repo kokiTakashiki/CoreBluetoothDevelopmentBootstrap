@@ -18,15 +18,15 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
 
 # 教材ドキュメントを Xcode のプロジェクトナビゲータに表示する（非コンパイル）。
-# どちらも central/ 直下なので、ナビゲータでは "central" グループに綺麗に収まる。
-#   - GUIDE.md       … コードの読み方（手順0〜7）＋動かし方
-#   - README.md      … central（アプリ）の入口。GUIDE と 直下 README(E2E) への道案内つき
-# リポジトリ直下の README（実機 E2E 手順）は取り込まない。app プロジェクトから 2 階層上に
-# あり、取り込むとチェックアウト先フォルダ名のグループができて汚くなるため（直下 README は
-# central/README.md からリンクし、GitHub / リポジトリ直下で読む）。
+#   - GUIDE.md / README.md      … central/ 直下 → "central" グループに収まる
+#   - docs/TROUBLESHOOTING.md    … repo 直下 docs/ → 親が docs なので "docs" グループに収まる。
+#       単一原典なので転記せず実体を表示する（central/README.md からのリンク先を Xcode でも開ける）。
+# リポジトリ直下の README（一般説明）は取り込まない。親が repo 直下のため取り込むと
+# チェックアウト先フォルダ名のグループができて汚くなる（GitHub / リポジトリ直下で読む）。
 fileGroups:
   - ../GUIDE.md
   - ../README.md
+  - ../../docs/TROUBLESHOOTING.md
 
 packages:
   Pulse:
