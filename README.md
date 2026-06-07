@@ -4,8 +4,6 @@ Core Bluetooth（BLE）の検証環境を `make` で自動構築する。iOS Cen
 
 nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実機書き込み・nRF Sniffer）は submodule [`nrf52840-ble-debug-bootstrap`](https://github.com/kokiTakashiki/nrf52840-ble-debug-bootstrap) に委譲し、このリポジトリはそれと Central アプリをまとめて呼び出す。
 
-> 対象ホスト: Apple Silicon Mac ＋ Homebrew。Xcode の実機ビルド・署名・実行は人手（Make 対象外）。
-
 ## 必要な機材
 
 | 機材 | 役割 |
@@ -14,9 +12,9 @@ nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実
 | nRF52840 MDBT50Q USB ドングル | nRF Sniffer（観測側） |
 | iPhone（実機） | 自作 Central アプリの実行先（Core Bluetooth は実機のみ） |
 
-## クイックスタート（実機での E2E）
+## クイックスタート
 
-「DK が出す BLE を、自作の Central アプリで叩き、その通信を Sniffer で電波として裏取りする」までを通す手順。
+「DK が出す BLE を、この Central アプリで叩き、その通信を Sniffer で電波として裏取りする」までを通す手順。
 
 ### 0. 基盤を用意（初回のみ・実機不要・冪等）
 
@@ -24,7 +22,7 @@ nRF ハード固有の工程（NCS 導入・ファームウェアビルド・実
 make setup
 ```
 
-ツール導入・NCS 取得・ファームウェアビルド・Sniffer extcap 配置・Xcode プロジェクト生成までをまとめて行う（初回は数 GB の DL。再実行しても同じ状態に収束する）。
+ツール導入・NCS 取得・ファームウェアビルド・Sniffer extcap 配置・Xcode プロジェクト生成までをまとめて行う。
 
 ### 1. 開発キットを Peripheral にする
 
@@ -32,7 +30,7 @@ make setup
 make flash-peripheral
 ```
 
-peripheral_uart（Nordic UART Service = NUS）を DK に焼き、続けて BLE↔シリアルの往復を対話検査する（画面の y/N の指示に従う）。
+peripheral_uart（Nordic UART Service = NUS）を DK に焼き、続けて BLE↔シリアルの往復を対話検査する。
 
 ### 2. Sniffer で電波を観測する（Wireshark）
 
@@ -56,7 +54,7 @@ make open-central
 Xcode が開くので:
 
 1. 実機（iPhone）を選び、**Signing & Capabilities で Team を設定**して **Run（⌘R）**。
-2. 起動時に出る **「Bluetooth の使用許可」を「許可」**（許可しないと scan できない）。
+2. 起動時に出る **「Bluetooth の使用許可」を「許可」**。
 3. 画面は [Pulse](https://github.com/kean/Pulse) のコンソール。上部の **`▼` で `Console` タブに切り替える**と、ログが流れる:
    `【0】起動 → 【1】scan → 【2】接続(Nordic_UART_Service) → 【3】〜【5】探索 → 【7】"Hello from iOS" 書き込み`
 
@@ -68,7 +66,7 @@ Wireshark のフィルタ欄に **`btatt`** と入れて Enter。接続の ATT�
 - `Read By Group Type`（→ Nordic UART Service 発見）/ `Read By Type`（→ Nordic UART Rx / Tx 発見）… **GATT Discovery**
 - **`Write Command, Handle 0x0015` の `Value` が `Hello from iOS`** … **アプリの【7】書き込みが電波に乗った証拠**（hex `48 65 6c 6c 6f 20 66 72 6f 6d 20 69 4f 53`）
 
-iPhone アプリ（Swift）が書いたバイトが、そのまま電波上の ATT パケットとして観測できれば、**Phase 1（DK）＋ Phase 2（Sniffer）＋ Phase 3（Central アプリ）が一本に繋がった** ＝ 検証環境が機能している。
+iPhone アプリが書いたバイトが、そのまま電波上の ATT パケットとして観測できれば、**Phase 1（DK）＋ Phase 2（Sniffer）＋ Phase 3（Central アプリ）が一本に繋がった** ＝ 検証環境が機能している。
 
 > 詰まったら [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)（コマンド別）を参照。
 
